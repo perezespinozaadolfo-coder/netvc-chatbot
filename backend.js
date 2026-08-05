@@ -348,7 +348,7 @@ button:hover{background:#E67E00}</style></head><body>
         
         let msgsHtml = '';
         client.messages.forEach((msg, midx) => {
-            const timeStr = new Date(msg.timestamp).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+            const timeStr = new Date(msg.timestamp).toLocaleString('es-MX', { timeZone: 'America/Denver' });
             msgsHtml += `<div class="msg-item"><div class="msg-user"><strong>Cliente:</strong> ${msg.userMessage}</div><div class="msg-timestamp">${timeStr}</div><div class="msg-bot"><strong>NetVC:</strong> ${msg.botResponse}</div></div>`;
         });
         
