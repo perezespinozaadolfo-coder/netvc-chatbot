@@ -8,8 +8,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-
-// CORS
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -18,7 +16,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// Verificar API Key
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 if (!API_KEY) {
     console.log('🔑 API Key: ERROR ✗');
@@ -29,14 +26,12 @@ const client = new Anthropic({ apiKey: API_KEY });
 const SUPPORT_TEAM = ['Sharon', 'Abigail', 'Angel', 'Juan', 'Estefania', 'Francisco', 'Adolfo', 'Alessandra', 'Francia'];
 const CONVERSATIONS_FILE = path.join(__dirname, 'conversations.json');
 const PROJECTS_FILE = path.join(__dirname, 'projects.json');
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'NetVC2024';
+const ADMIN_PASSWORD = 'NetVC2024';
 
-// Información de NetVC
 const NETVC_INFO = {
     phone: '+52 686 392 0262',
     email: 'Contacto@netvc.mx',
     schedule: 'Lunes-Viernes 10:30am-6:30pm',
-    location: 'Mexicali, Baja California',
 };
 
 function loadConversations() {
@@ -61,74 +56,81 @@ function saveProjects(data) {
     fs.writeFileSync(PROJECTS_FILE, JSON.stringify(data, null, 2));
 }
 
-// Endpoint: Chat
+// GET: Conversaciones de un cliente (HISTORIAL COMPLETO)
+app.get('/api/client-conversations/:clientName', (req, res) => {
+    try {
+        const { clientName } = req.params;
+        const conversations = loadConversations();
+        const clientConvs = conversations.filter(c => c.clientName === clientName);
+        res.json(clientConvs);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST: Chat con MEMORIA COMPLETA
 app.post('/api/chat', async (req, res) => {
     try {
-        const { message, clientName, personName, lastExchange, clientPhone, clientEmail } = req.body;
+        const { message, clientName, clientPhone, clientEmail, personName } = req.body;
 
         if (!message || !clientName) {
-            return res.status(400).json({ error: 'Faltan campos requeridos' });
+            return res.status(400).json({ error: 'Faltan campos' });
         }
 
-        const assignedPerson = personName || SUPPORT_TEAM[Math.floor(Math.random() * SUPPORT_TEAM.length)];
+        // Cargar TODO el historial anterior del cliente
+        const allConversations = loadConversations();
+        const clientHistory = allConversations.filter(c => c.clientName === clientName);
         
-        const systemPrompt = `Eres ${assignedPerson}, Ingeniero/a Senior especialista en TI de NetVC. EXPERTO EN RECOPILACIÓN PROFUNDA.
+        const assignedPerson = personName || SUPPORT_TEAM[Math.floor(Math.random() * SUPPORT_TEAM.length)];
 
-INFORMACIÓN DE NETVC:
+        // Construir contexto con TODO el historial
+        let historyContext = '';
+        if (clientHistory.length > 0) {
+            historyContext = '\n\nHISTORIAL PREVIO CON ESTE CLIENTE:\n';
+            historyContext += '================================\n';
+            clientHistory.slice(-10).forEach((msg, idx) => {
+                historyContext += `\n${idx + 1}. Cliente: ${msg.userMessage}\n   NetVC: ${msg.botResponse}\n`;
+            });
+            historyContext += '\n================================\n';
+        }
+
+        const systemPrompt = `Eres ${assignedPerson}, Ingeniero/a Senior de NetVC especialista en recopilación de datos.
+
+INFORMACIÓN:
 - Teléfono: ${NETVC_INFO.phone} | Email: ${NETVC_INFO.email}
 - Horario: ${NETVC_INFO.schedule}
-- Servicios: Consultoría TI, Implementación, Seguridad, Nube, Soporte 24/7, Proyectos TI
+- Cliente: ${clientName} | ${clientPhone} | ${clientEmail}
 
-CLIENTE: ${clientName} | ${clientPhone} | ${clientEmail}
+${historyContext}
 
-HISTORIAL ANTERIOR (para contexto):
-${lastExchange && lastExchange.lastQuestion ? `Última pregunta: ${lastExchange.lastQuestion}` : 'Primera interacción'}
+ESTRATEGIA CON MEMORIA:
+1. NUNCA repitas preguntas que el cliente ya contestó (revisa historial)
+2. Avanza lógicamente en el diagnóstico
+3. Una pregunta por mensaje, máximo 80 palabras
+4. Si cliente dice "luego", "ahora no", "me voy" → cierra con:
+   "Perfecto ${clientName}, nuestros ingenieros analizarán tu info y se contactarán pronto. ${NETVC_INFO.phone} | ${NETVC_INFO.email}"
+5. Después de 8-10 preguntas útiles → cierra de la misma forma
+6. Tono: CEO a CEO, profesional
 
-ESTRATEGIA - MEMORIA INTELIGENTE:
-
-**IMPORTANTE:** Si el cliente YA respondió algo en el historial, NO lo preguntes de nuevo.
-Avanza lógicamente sin saltos. Profundiza en lo que falta.
-
-FASE 1 - ESCUCHA INICIAL: Presentación breve, dejar que explique su necesidad
-
-FASE 2 - PREGUNTAS DIAGNÓSTICAS PROFUNDAS:
-Haz 1 pregunta por mensaje, MUY específica. Información a recopilar:
-- Problema/necesidad exacta
-- Tamaño/escala (usuarios, dispositivos, etc)
-- Presupuesto disponible
-- Timeline/urgencia
+INFORMACIÓN A RECOPILAR (solo lo que NO tiene):
+- Problema exacto/necesidad
+- Escala (usuarios, dispositivos, etc)
+- Presupuesto
+- Timeline
 - Requisitos técnicos
-- Soporte/mantenimiento
+- Soporte/mantenimiento`;
 
-FASE 3 - CIERRE:
-Cuando tengas suficiente info (8-10 preguntas), cierra:
-"Perfecto ${clientName}, tengo claro tu proyecto. 📋
-NUESTROS INGENIEROS EXPERTOS analizarán toda la información y se pondrán en contacto lo antes posible.
-Si tienes dudas: ${NETVC_INFO.phone} (${NETVC_INFO.schedule})
-¡Gracias por confiar en NetVC! 🚀"
-
-IMPORTANTE:
-- Máximo 1 pregunta por mensaje
-- Respuestas breves (60-80 palabras)
-- NO repitas preguntas
-- Tono: CEO a CEO`;
-
+        // Construir messages para Claude CON TODO el historial
         const messages = [];
-        if (lastExchange && lastExchange.lastQuestion && lastExchange.lastResponse) {
-            messages.push({
-                role: 'user',
-                content: lastExchange.lastQuestion
-            });
-            messages.push({
-                role: 'assistant',
-                content: lastExchange.lastResponse
-            });
-        }
         
-        messages.push({
-            role: 'user',
-            content: message
+        // Agregar historial completo
+        clientHistory.slice(-10).forEach(msg => {
+            messages.push({ role: 'user', content: msg.userMessage });
+            messages.push({ role: 'assistant', content: msg.botResponse });
         });
+        
+        // Agregar nuevo mensaje
+        messages.push({ role: 'user', content: message });
 
         const response = await client.messages.create({
             model: 'claude-sonnet-4-6',
@@ -142,6 +144,7 @@ IMPORTANTE:
         // Guardar conversación
         const conversations = loadConversations();
         conversations.push({
+            id: Date.now(),
             timestamp: new Date().toISOString(),
             clientName: clientName,
             clientPhone: clientPhone || 'No proporcionado',
@@ -155,43 +158,46 @@ IMPORTANTE:
         res.json({
             success: true,
             response: botResponse,
-            personName: assignedPerson,
-            lastQuestion: message,
-            lastResponse: botResponse
+            personName: assignedPerson
         });
 
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).json({ error: 'Error procesando mensaje', details: error.message });
+        res.status(500).json({ error: error.message });
     }
 });
 
-// Endpoint: Generar Reporte Profesional
+// POST: Generar Reporte Profesional
 app.post('/api/generate-project-report', async (req, res) => {
     try {
-        const { clientName, clientEmail, clientPhone, conversationHistory, password } = req.body;
+        const { clientName, clientEmail, clientPhone, password } = req.body;
 
-        if (!password || password !== ADMIN_PASSWORD) {
+        if (password !== ADMIN_PASSWORD) {
             return res.status(401).json({ error: 'No autorizado' });
         }
 
-        if (!clientName || !conversationHistory) {
-            return res.status(400).json({ error: 'Faltan datos' });
+        // Obtener TODO el historial del cliente
+        const conversations = loadConversations();
+        const clientHistory = conversations.filter(c => c.clientName === clientName);
+
+        if (clientHistory.length === 0) {
+            return res.status(400).json({ error: 'Sin conversaciones del cliente' });
         }
 
-        const reportPrompt = `ERES ANALISTA SENIOR DE PROYECTOS DE NETVC.
+        // Formato para Claude
+        let historyText = '';
+        clientHistory.forEach(msg => {
+            historyText += `Cliente: ${msg.userMessage}\nNetVC: ${msg.botResponse}\n\n`;
+        });
 
-Basándote en esta conversación con un cliente, genera un REPORTE PROFESIONAL INTERNO para ingenieros de NetVC.
+        const reportPrompt = `ERES ANALISTA SENIOR DE PROYECTOS NETVC.
 
-CLIENTE:
-- Nombre: ${clientName}
-- Email: ${clientEmail}
-- Teléfono: ${clientPhone}
+CLIENTE: ${clientName} | ${clientEmail} | ${clientPhone}
 
-CONVERSACIÓN:
-${conversationHistory.map(msg => `Cliente: ${msg.userMessage}\nNetVC: ${msg.botResponse}`).join('\n\n')}
+CONVERSACIÓN COMPLETA:
+${historyText}
 
-GENERA UN REPORTE JSON CON ESTE FORMATO EXACTO:
+GENERA UN REPORTE JSON PROFESIONAL INTERNO PARA INGENIEROS:
 
 {
   "clientInfo": {
@@ -200,50 +206,48 @@ GENERA UN REPORTE JSON CON ESTE FORMATO EXACTO:
     "telefono": "${clientPhone}"
   },
   "datosRecopilados": {
-    "tipoProyecto": "Descripción del tipo de proyecto",
-    "escala": "Tamaño/usuarios/dispositivos",
-    "ubicacion": "Ubicaciones geográficas",
-    "infraestructura": "Estado actual de infraestructura"
+    "tipoProyecto": "DESCRIPCIÓN DEL TIPO DE PROYECTO",
+    "escala": "CANTIDAD DE USUARIOS/DISPOSITIVOS",
+    "ubicacion": "UBICACIÓN GEOGRÁFICA",
+    "infraestructura": "INFRAESTRUCTURA ACTUAL"
   },
-  "datosPendientes": ["Dato 1", "Dato 2"],
+  "datosPendientes": ["DATO1", "DATO2"],
   "propuestaDesarrollo": {
-    "titulo": "Título de la propuesta",
-    "analisisTecnico": "Análisis técnico detallado",
-    "solucionPropuesta": "Solución específica que NetVC propone",
-    "fases": "Fases de implementación con timeline",
-    "recomendaciones": "Recomendaciones profesionales para el cliente",
-    "costoEstimado": "Rango estimado del costo total"
+    "titulo": "TÍTULO DE LA SOLUCIÓN",
+    "analisisTecnico": "ANÁLISIS TÉCNICO DETALLADO",
+    "solucionPropuesta": "SOLUCIÓN ESPECÍFICA",
+    "fases": "FASES CON TIMELINE",
+    "recomendaciones": "RECOMENDACIONES PROFESIONALES",
+    "costoEstimado": "RANGO ESTIMADO"
   },
   "presupuestoDetallado": {
     "componentes": [
-      {"nombre": "Componente 1", "descripcion": "Descripción", "costoMensual": 500, "costoInstalacion": 2000},
-      {"nombre": "Componente 2", "descripcion": "Descripción", "costoMensual": 300, "costoInstalacion": 0}
+      {"nombre": "COMPONENTE1", "descripcion": "DESC", "costoMensual": 500, "costoInstalacion": 1000}
     ],
-    "totalMensual": 800,
-    "totalInstalacion": 2000,
-    "totalAnual": 9600,
-    "notas": "Presupuesto provisional sujeto a datos confirmados"
+    "totalMensual": 500,
+    "totalInstalacion": 1000,
+    "totalAnual": 7000,
+    "notas": "PROVISIONAL"
   },
-  "proximosPasos": ["Paso 1", "Paso 2", "Paso 3"]
+  "proximosPasos": ["PASO1", "PASO2"]
 }
 
-IMPORTANTE: Genera JSON VÁLIDO, números reales, recomendaciones profesionales.`;
+IMPORTANTE: JSON VÁLIDO, números reales, basado en lo que el cliente dijo.`;
 
         const response = await client.messages.create({
             model: 'claude-sonnet-4-6',
-            max_tokens: 2500,
-            system: 'Eres especialista en análisis y propuestas de proyectos TI. Genera reportes profesionales en JSON válido.',
+            max_tokens: 3000,
+            system: 'Eres experto en propuestas TI. Genera JSON válido, profesional, basado en datos reales.',
             messages: [{ role: 'user', content: reportPrompt }]
         });
 
         const reportText = response.content[0].text;
-        
         let reportData;
         try {
             const jsonMatch = reportText.match(/\{[\s\S]*\}/);
             reportData = JSON.parse(jsonMatch ? jsonMatch[0] : reportText);
         } catch (e) {
-            reportData = { error: 'No se pudo parsear', rawReport: reportText };
+            reportData = { error: 'Parse failed', raw: reportText };
         }
 
         // Guardar proyecto
@@ -254,32 +258,27 @@ IMPORTANTE: Genera JSON VÁLIDO, números reales, recomendaciones profesionales.
             clientEmail: clientEmail,
             clientPhone: clientPhone,
             timestamp: new Date().toISOString(),
-            report: reportData,
-            status: 'pending_review'
+            report: reportData
         };
 
         projects.push(newProject);
         saveProjects(projects);
 
-        res.json({
-            success: true,
-            report: reportData,
-            projectId: newProject.id
-        });
+        res.json({ success: true, report: reportData, projectId: newProject.id });
 
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).json({ error: 'Error generando reporte', details: error.message });
+        res.status(500).json({ error: error.message });
     }
 });
 
-// Endpoint: Descargar Reporte como TXT
+// GET: Descargar Reporte
 app.get('/api/download-report/:projectId', (req, res) => {
     try {
         const { projectId } = req.params;
         const password = req.query.pwd;
 
-        if (!password || password !== ADMIN_PASSWORD) {
+        if (password !== ADMIN_PASSWORD) {
             return res.status(401).json({ error: 'No autorizado' });
         }
 
@@ -290,86 +289,68 @@ app.get('/api/download-report/:projectId', (req, res) => {
             return res.status(404).json({ error: 'Proyecto no encontrado' });
         }
 
-        // Generar contenido TXT formateado
-        const report = project.report;
-        let content = `REPORTE DE PROYECTO - NETVC\n`;
-        content += `${'='.repeat(80)}\n\n`;
-        content += `CLIENTE: ${report.clientInfo.nombre}\n`;
-        content += `EMAIL: ${report.clientInfo.email}\n`;
-        content += `TELÉFONO: ${report.clientInfo.telefono}\n`;
+        const r = project.report;
+        let content = `REPORTE DE PROYECTO - NETVC\n${'='.repeat(80)}\n\n`;
+        content += `CLIENTE: ${r.clientInfo.nombre}\nEMAIL: ${r.clientInfo.email}\nTELÉFONO: ${r.clientInfo.telefono}\n`;
         content += `FECHA: ${new Date(project.timestamp).toLocaleString('es-MX')}\n\n`;
 
-        content += `DATOS RECOPILADOS\n`;
-        content += `${'-'.repeat(80)}\n`;
-        content += `Tipo Proyecto: ${report.datosRecopilados.tipoProyecto}\n`;
-        content += `Escala: ${report.datosRecopilados.escala}\n`;
-        content += `Ubicación: ${report.datosRecopilados.ubicacion}\n`;
-        content += `Infraestructura: ${report.datosRecopilados.infraestructura}\n\n`;
+        content += `DATOS RECOPILADOS\n${'-'.repeat(80)}\n`;
+        content += `Tipo: ${r.datosRecopilados.tipoProyecto}\n`;
+        content += `Escala: ${r.datosRecopilados.escala}\n`;
+        content += `Ubicación: ${r.datosRecopilados.ubicacion}\n`;
+        content += `Infraestructura: ${r.datosRecopilados.infraestructura}\n\n`;
 
-        if (report.datosPendientes && report.datosPendientes.length > 0) {
-            content += `DATOS PENDIENTES (SOLICITADOS POR EMAIL)\n`;
-            content += `${'-'.repeat(80)}\n`;
-            report.datosPendientes.forEach(dato => {
-                content += `⚠️  ${dato}\n`;
-            });
-            content += `\n👉 Cliente debe enviar estos datos a: Contacto@netvc.mx\n\n`;
+        if (r.datosPendientes && r.datosPendientes.length) {
+            content += `DATOS PENDIENTES\n${'-'.repeat(80)}\n`;
+            r.datosPendientes.forEach(d => content += `⚠️ ${d}\n`);
+            content += `\nEnviar a: ${NETVC_INFO.email}\n\n`;
         }
 
-        content += `PROPUESTA DE DESARROLLO\n`;
-        content += `${'-'.repeat(80)}\n`;
-        content += `${report.propuestaDesarrollo.titulo}\n\n`;
-        content += `Análisis Técnico:\n${report.propuestaDesarrollo.analisisTecnico}\n\n`;
-        content += `Solución Propuesta:\n${report.propuestaDesarrollo.solucionPropuesta}\n\n`;
-        content += `Fases:\n${report.propuestaDesarrollo.fases}\n\n`;
-        content += `Recomendaciones:\n${report.propuestaDesarrollo.recomendaciones}\n\n`;
-        content += `Costo Estimado: ${report.propuestaDesarrollo.costoEstimado}\n\n`;
+        content += `PROPUESTA DE DESARROLLO\n${'-'.repeat(80)}\n`;
+        content += `${r.propuestaDesarrollo.titulo}\n\n`;
+        content += `Análisis Técnico:\n${r.propuestaDesarrollo.analisisTecnico}\n\n`;
+        content += `Solución:\n${r.propuestaDesarrollo.solucionPropuesta}\n\n`;
+        content += `Fases:\n${r.propuestaDesarrollo.fases}\n\n`;
+        content += `Recomendaciones:\n${r.propuestaDesarrollo.recomendaciones}\n\n`;
 
-        content += `PRESUPUESTO DETALLADO\n`;
-        content += `${'-'.repeat(80)}\n`;
-        report.presupuestoDetallado.componentes.forEach(comp => {
-            content += `\n${comp.nombre}\n`;
-            content += `  Descripción: ${comp.descripcion}\n`;
-            content += `  Costo Mensual: $${comp.costoMensual.toLocaleString('es-MX')}\n`;
-            content += `  Instalación: $${comp.costoInstalacion.toLocaleString('es-MX')}\n`;
+        content += `PRESUPUESTO DETALLADO\n${'-'.repeat(80)}\n`;
+        r.presupuestoDetallado.componentes.forEach(c => {
+            content += `\n${c.nombre}\n${c.descripcion}\n`;
+            content += `Mensual: $${c.costoMensual} | Instalación: $${c.costoInstalacion}\n`;
         });
-        content += `\nTOTAL MENSUAL: $${report.presupuestoDetallado.totalMensual.toLocaleString('es-MX')}\n`;
-        content += `TOTAL INSTALACIÓN: $${report.presupuestoDetallado.totalInstalacion.toLocaleString('es-MX')}\n`;
-        content += `TOTAL ANUAL: $${report.presupuestoDetallado.totalAnual.toLocaleString('es-MX')}\n`;
-        content += `\nNotas: ${report.presupuestoDetallado.notas}\n\n`;
+        content += `\nTOTAL MENSUAL: $${r.presupuestoDetallado.totalMensual}\n`;
+        content += `TOTAL INSTALACIÓN: $${r.presupuestoDetallado.totalInstalacion}\n`;
+        content += `TOTAL ANUAL: $${r.presupuestoDetallado.totalAnual}\n`;
+        content += `\nNotas: ${r.presupuestoDetallado.notas}\n\n`;
 
-        content += `PRÓXIMOS PASOS\n`;
-        content += `${'-'.repeat(80)}\n`;
-        report.proximosPasos.forEach((paso, idx) => {
-            content += `${idx + 1}. ${paso}\n`;
-        });
+        content += `PRÓXIMOS PASOS\n${'-'.repeat(80)}\n`;
+        r.proximosPasos.forEach((p, i) => content += `${i + 1}. ${p}\n`);
+        content += `\n${'='.repeat(80)}\nGenerado por NetVC - ${new Date().toLocaleString('es-MX')}\n`;
 
-        content += `\n${'='.repeat(80)}\n`;
-        content += `Reporte generado por NetVC - ${new Date().toLocaleString('es-MX')}\n`;
-
-        // Enviar como descarga
         res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="Reporte_${report.clientInfo.nombre}_${Date.now()}.txt"`);
+        res.setHeader('Content-Disposition', `attachment; filename="Reporte_${r.clientInfo.nombre}_${Date.now()}.txt"`);
         res.send(content);
 
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).json({ error: 'Error descargando reporte' });
+        res.status(500).json({ error: error.message });
     }
 });
 
-// Endpoint: Panel Admin
+// GET: Panel Admin
 app.get('/admin', (req, res) => {
     const password = req.query.pwd;
     
     if (!password || password !== ADMIN_PASSWORD) {
         return res.send(`<!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8"><title>NetVC Admin - Login</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto;background:#f5f5f5;display:flex;justify-content:center;align-items:center;height:100vh}
-.login-box{background:white;padding:2rem;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);max-width:350px;width:100%}h1{color:#FF8C00;margin-bottom:1.5rem;text-align:center}
-label{display:block;margin-bottom:0.5rem;color:#333;font-weight:500}input{width:100%;padding:0.75rem;border:1px solid #ddd;border-radius:4px;margin-bottom:1rem}
-input:focus{outline:0;border-color:#FF8C00;box-shadow:0 0 5px rgba(255,140,0,0.3)}button{width:100%;padding:0.75rem;background:#FF8C00;color:white;border:0;border-radius:4px;font-weight:600;cursor:pointer}
-button:hover{background:#E67E00}</style></head><body><div class="login-box"><h1>🔐 NetVC Admin</h1>
-<form method="GET"><label>Contraseña:</label><input type="password" name="pwd" placeholder="Ingresa contraseña" required>
+<html><head><meta charset="UTF-8"><title>NetVC Admin</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui;background:#f5f5f5;display:flex;justify-content:center;align-items:center;height:100vh}
+.login{background:white;padding:2rem;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);max-width:350px;width:100%}h1{color:#FF8C00;margin-bottom:1.5rem;text-align:center}
+input{width:100%;padding:0.75rem;border:1px solid #ddd;border-radius:4px;margin-bottom:1rem;font-size:1rem}
+button{width:100%;padding:0.75rem;background:#FF8C00;color:white;border:0;border-radius:4px;font-weight:600;cursor:pointer}
+button:hover{background:#E67E00}</style></head><body>
+<div class="login"><h1>🔐 NetVC Admin</h1>
+<form method="GET"><input type="password" name="pwd" placeholder="Contraseña" required>
 <button type="submit">Acceder</button></form></div></body></html>`);
     }
 
@@ -387,39 +368,34 @@ button:hover{background:#E67E00}</style></head><body><div class="login-box"><h1>
                 messages: []
             };
         }
-        clientsMap[conv.clientName].messages.push({
-            timestamp: conv.timestamp,
-            user: conv.userMessage,
-            bot: conv.botResponse
-        });
+        clientsMap[conv.clientName].messages.push(conv);
     });
 
     const clients = Object.values(clientsMap);
 
-    const clientsHtml = clients.map((client, idx) => {
-        const clientMsgs = conversations.filter(c => c.clientName === client.name);
+    let clientsHtml = '';
+    clients.forEach((client, idx) => {
         const clientProj = projects.find(p => p.clientName === client.name);
         
         let msgsHtml = '';
-        clientMsgs.forEach(msg => {
-            msgsHtml += '<div class="msg-user"><strong>' + msg.userMessage + '</strong><br><small>' + new Date(msg.timestamp).toLocaleString('es-MX') + '</small></div>';
-            msgsHtml += '<div class="msg-bot">' + msg.botResponse + '</div>';
+        client.messages.forEach((msg, midx) => {
+            msgsHtml += `<div class="msg-item"><div class="msg-user"><strong>Cliente:</strong> ${msg.userMessage}</div><div class="msg-timestamp">${new Date(msg.timestamp).toLocaleString('es-MX')}</div><div class="msg-bot"><strong>NetVC:</strong> ${msg.botResponse}</div></div>`;
         });
         
         let projBtn = '';
         if (clientProj) {
-            projBtn = '<button class="btn-report" onclick="viewReport(' + clientProj.id + ', \'' + password + '\')">📄 Ver Reporte</button><button class="btn-download" onclick="downloadReport(' + clientProj.id + ', \'' + password + '\')">📥 Descargar</button>';
+            projBtn = `<button class="btn-view" onclick="viewReport(${clientProj.id}, '${password}')">📄 Ver Reporte</button><button class="btn-download" onclick="downloadReport(${clientProj.id}, '${password}')">📥 Descargar</button>`;
         } else {
-            projBtn = '<button class="btn-generate" onclick="generateReport(\'' + client.name + '\', \'' + client.email + '\', \'' + client.phone + '\', \'' + password + '\')">📄 Generar Reporte</button>';
+            projBtn = `<button class="btn-gen" onclick="genReport('${client.name}', '${client.email}', '${client.phone}', '${password}')">📄 Generar</button>`;
         }
         
-        return '<div class="client"><div class="header"><div><strong>' + client.name + '</strong><br><small>' + client.phone + ' | ' + client.email + ' | ' + client.person + '</small></div><div class="btns"><button onclick="toggleChat(' + idx + ')">💬 Chat</button>' + projBtn + '</div></div><div class="msgs" id="chat-' + idx + '">' + msgsHtml + '</div></div>';
-    }).join('');
+        clientsHtml += `<div class="client"><div class="header"><div><strong>${client.name}</strong><br><small>${client.phone} | ${client.email}</small></div><div class="buttons"><button onclick="toggle(${idx})">💬 Chat (${client.messages.length})</button>${projBtn}</div></div><div class="messages" id="msgs-${idx}">${msgsHtml}</div></div>`;
+    });
 
     res.send(`<!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NetVC Admin - Dashboard</title><style>
-*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto;background:#f5f5f5}
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NetVC Admin v9</title><style>
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui;background:#f5f5f5}
 .container{max-width:1400px;margin:0 auto;padding:2rem}header{background:#FF8C00;color:white;padding:1.5rem;border-radius:8px;margin-bottom:2rem;display:flex;justify-content:space-between;align-items:center}
 h1{font-size:2rem}.logout{background:white;color:#FF8C00;padding:0.5rem 1rem;border-radius:4px;text-decoration:none;font-weight:600}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem}
@@ -428,111 +404,70 @@ h1{font-size:2rem}.logout{background:white;color:#FF8C00;padding:0.5rem 1rem;bor
 .clients{background:white;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1)}
 .client{border-bottom:1px solid #eee;padding:1.5rem}.client:last-child{border-bottom:0}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
-.btns{display:flex;gap:0.5rem}button{padding:0.5rem 1rem;border:0;border-radius:4px;cursor:pointer;font-weight:600}
-.btn-report,.btn-generate{background:#FF8C00;color:white}.btn-download{background:#4CAF50;color:white}
+.buttons{display:flex;gap:0.5rem}button{padding:0.5rem 1rem;border:0;border-radius:4px;cursor:pointer;font-weight:600}
+.btn-view,.btn-gen{background:#FF8C00;color:white}.btn-download{background:#4CAF50;color:white}
 button:hover{opacity:0.9}
-.msgs{display:none;max-height:400px;overflow-y:auto;padding:1rem;background:#f9f9f9;border-radius:4px;margin-top:1rem}
-.msgs.open{display:block}
-.msg-user,.msg-bot{margin-bottom:1rem;padding:0.75rem;border-radius:4px}
-.msg-user{background:#FF8C00;color:white;text-align:right}.msg-bot{background:#e0e0e0;color:#333}
-.modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;z-index:1000}
+.messages{display:none;max-height:500px;overflow-y:auto;padding:1rem;background:#f9f9f9;border-radius:4px;margin-top:1rem}
+.messages.open{display:block}
+.msg-item{margin-bottom:1.5rem;padding:1rem;background:white;border-left:4px solid #FF8C00;border-radius:4px}
+.msg-user{background:#f0f0f0;padding:0.75rem;border-radius:4px;margin-bottom:0.5rem}
+.msg-bot{background:#FFF3E0;padding:0.75rem;border-radius:4px;margin-top:0.5rem}
+.msg-timestamp{font-size:0.8rem;color:#999;margin:0.5rem 0}
+.modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;z-index:1000;overflow-y:auto}
 .modal.open{display:flex}
-.modal-content{background:white;padding:2rem;border-radius:8px;max-width:900px;max-height:90vh;overflow-y:auto;position:relative}
+.modal-content{background:white;padding:2rem;border-radius:8px;max-width:900px;margin:2rem;position:relative;max-height:90vh;overflow-y:auto}
 .close{position:absolute;top:1rem;right:1rem;background:#FF8C00;color:white;border:0;padding:0.5rem 1rem;border-radius:4px;cursor:pointer}
-</style></head><body><div class="container"><header><h1>📊 NetVC Admin Panel v8</h1><a class="logout" href="/">Cerrar sesión</a></header>
+</style></head><body><div class="container"><header><h1>📊 NetVC Admin v9</h1><a class="logout" href="/">Cerrar sesión</a></header>
 <div class="stats"><div class="stat"><h3>${clients.length}</h3><p>Clientes</p></div><div class="stat"><h3>${conversations.length}</h3><p>Mensajes</p></div><div class="stat"><h3>${projects.length}</h3><p>Reportes</p></div></div>
-<div class="clients">${clients.length === 0 ? '<div style="padding:2rem;text-align:center;color:#999">Sin clientes aún</div>' : clientsHtml}</div></div>
+<div class="clients">${clients.length === 0 ? '<div style="padding:2rem;text-align:center;color:#999">Sin clientes</div>' : clientsHtml}</div></div>
 
 <div id="modal" class="modal"><div class="modal-content"><button class="close" onclick="closeModal()">✕</button><div id="modal-body"></div></div></div>
 
 <script>
-const pwd = '${password}';
+function toggle(idx){document.getElementById('msgs-'+idx).classList.toggle('open')}
+function closeModal(){document.getElementById('modal').classList.remove('open')}
 
-function toggleChat(idx){document.getElementById('chat-'+idx).classList.toggle('open')}
-
-function generateReport(name,email,phone,pwd){
-  fetch('/api/admin/conversations?pwd='+pwd)
+function genReport(name, email, phone, pwd){
+  fetch('/api/generate-project-report', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({clientName:name, clientEmail:email, clientPhone:phone, password:pwd})})
     .then(r=>r.json())
-    .then(convs=>{
-      const clientConvs = convs.filter(c=>c.clientName===name);
-      if(!clientConvs.length){alert('Sin conversaciones');return}
-      fetch('/api/generate-project-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName:name,clientEmail:email,clientPhone:phone,conversationHistory:clientConvs,password:pwd})})
-        .then(r=>r.json())
-        .then(data=>{
-          if(data.success)viewReport(data.projectId, pwd);
-          else alert('Error: '+data.error);
-        })
-        .catch(e=>{console.error(e);alert('Error generando reporte')});
-    });
+    .then(d=>{if(d.success) viewReport(d.projectId, pwd); else alert('Error: '+d.error)})
+    .catch(e=>alert('Error: '+e));
 }
 
-function viewReport(projectId,pwd){
-  fetch('/api/admin/projects?pwd='+pwd)
-    .then(r=>r.json())
-    .then(projects=>{
-      const proj = projects.find(p=>p.id===projectId);
-      if(!proj){alert('Proyecto no encontrado');return}
-      const r = proj.report;
-      let html = '<h2>📊 REPORTE DE PROYECTO</h2>';
-      html += '<h3>Cliente: '+r.clientInfo.nombre+'</h3>';
-      html += '<p><strong>Email:</strong> '+r.clientInfo.email+'</p>';
-      html += '<p><strong>Teléfono:</strong> '+r.clientInfo.telefono+'</p>';
-      html += '<hr><h3>DATOS RECOPILADOS</h3>';
-      html += '<p><strong>Tipo Proyecto:</strong> '+r.datosRecopilados.tipoProyecto+'</p>';
-      html += '<p><strong>Escala:</strong> '+r.datosRecopilados.escala+'</p>';
-      if(r.datosPendientes && r.datosPendientes.length){
-        html += '<hr><h3>⚠️ DATOS PENDIENTES</h3><ul>';
-        r.datosPendientes.forEach(d=>{html += '<li>'+d+'</li>'});
-        html += '</ul><p><em>👉 Solicitados por: '+r.clientInfo.email+'</em></p>';
-      }
-      html += '<hr><h3>PROPUESTA DE DESARROLLO</h3>';
-      html += '<p><strong>'+r.propuestaDesarrollo.titulo+'</strong></p>';
-      html += '<p>'+r.propuestaDesarrollo.analisisTecnico+'</p>';
-      html += '<p><strong>Solución:</strong> '+r.propuestaDesarrollo.solucionPropuesta+'</p>';
-      html += '<p><strong>Fases:</strong> '+r.propuestaDesarrollo.fases+'</p>';
-      html += '<hr><h3>💰 PRESUPUESTO DETALLADO</h3>';
-      r.presupuestoDetallado.componentes.forEach(c=>{
-        html += '<div style="background:#f9f9f9;padding:1rem;margin-bottom:1rem;border-radius:4px"><strong>'+c.nombre+'</strong><br>'+c.descripcion+'<br>Mensual: $'+c.costoMensual.toLocaleString('es-MX')+' | Instalación: $'+c.costoInstalacion.toLocaleString('es-MX')+'</div>';
-      });
-      html += '<div style="background:#FFF3E0;padding:1.5rem;border-radius:4px;border-left:4px solid #FF8C00"><h4>TOTAL</h4><p>Mensual: <strong>$'+r.presupuestoDetallado.totalMensual.toLocaleString('es-MX')+'</strong></p><p>Instalación: <strong>$'+r.presupuestoDetallado.totalInstalacion.toLocaleString('es-MX')+'</strong></p><p>Anual: <strong>$'+r.presupuestoDetallado.totalAnual.toLocaleString('es-MX')+'</strong></p></div>';
-      html += '<hr><button onclick="downloadReport('+projectId+',\''+pwd+'\')" style="background:#4CAF50;color:white;padding:0.75rem 1.5rem;border:0;border-radius:4px;cursor:pointer;font-weight:600">📥 Descargar Reporte</button>';
-      document.getElementById('modal-body').innerHTML = html;
-      document.getElementById('modal').classList.add('open');
-    });
+function viewReport(id, pwd){
+  fetch('/api/admin/projects?pwd='+pwd).then(r=>r.json()).then(projs=>{
+    const p = projs.find(x=>x.id===id);
+    if(!p){alert('No encontrado');return}
+    const r = p.report;
+    let html = '<h2>📊 REPORTE: '+r.clientInfo.nombre+'</h2>';
+    html += '<p><strong>Email:</strong> '+r.clientInfo.email+' | <strong>Teléfono:</strong> '+r.clientInfo.telefono+'</p><hr>';
+    html += '<h3>DATOS RECOPILADOS</h3><p><strong>Tipo:</strong> '+r.datosRecopilados.tipoProyecto+'</p><p><strong>Escala:</strong> '+r.datosRecopilados.escala+'</p>';
+    if(r.datosPendientes && r.datosPendientes.length){html += '<hr><h3>⚠️ PENDIENTES</h3><ul>';r.datosPendientes.forEach(d=>{html+='<li>'+d+'</li>'});html+='</ul>'}
+    html += '<hr><h3>PROPUESTA</h3><p>'+r.propuestaDesarrollo.titulo+'</p><p>'+r.propuestaDesarrollo.analisisTecnico+'</p>';
+    html += '<hr><h3>💰 PRESUPUESTO</h3>';
+    r.presupuestoDetallado.componentes.forEach(c=>{html+='<div style="background:#f9f9f9;padding:1rem;margin:0.5rem 0;border-radius:4px"><strong>'+c.nombre+'</strong><br>'+c.descripcion+'<br>Mensual: $'+c.costoMensual+' | Instalación: $'+c.costoInstalacion+'</div>'});
+    html += '<div style="background:#FFF3E0;padding:1rem;margin-top:1rem;border-radius:4px;border-left:4px solid #FF8C00"><h4>TOTAL</h4><p>Mensual: $'+r.presupuestoDetallado.totalMensual+'</p><p>Instalación: $'+r.presupuestoDetallado.totalInstalacion+'</p><p>Anual: $'+r.presupuestoDetallado.totalAnual+'</p></div>';
+    html += '<hr><button onclick="downloadReport('+id+', \''+pwd+'\')" style="background:#4CAF50;color:white;padding:0.75rem 1rem;border:0;border-radius:4px;cursor:pointer;font-weight:600;margin-top:1rem">📥 Descargar Reporte</button>';
+    document.getElementById('modal-body').innerHTML = html;
+    document.getElementById('modal').classList.add('open');
+  });
 }
 
-function downloadReport(projectId,pwd){
-  window.location.href = '/api/download-report/'+projectId+'?pwd='+pwd;
-}
-
-function closeModal(){
-  document.getElementById('modal').classList.remove('open');
+function downloadReport(id, pwd){
+  window.location.href = '/api/download-report/'+id+'?pwd='+pwd;
 }
 </script></body></html>`);
 });
 
-// API: Obtener conversaciones
-app.get('/api/admin/conversations', (req, res) => {
-    const password = req.query.pwd;
-    if (!password || password !== ADMIN_PASSWORD) {
-        return res.status(401).json({ error: 'No autorizado' });
-    }
-    res.json(loadConversations());
-});
-
-// API: Obtener proyectos
+// API auxiliares
 app.get('/api/admin/projects', (req, res) => {
-    const password = req.query.pwd;
-    if (!password || password !== ADMIN_PASSWORD) {
-        return res.status(401).json({ error: 'No autorizado' });
-    }
+    const pwd = req.query.pwd;
+    if (pwd !== ADMIN_PASSWORD) return res.status(401).json({ error: 'No auth' });
     res.json(loadProjects());
 });
 
-// Iniciar servidor
+// Iniciar
 app.listen(PORT, () => {
-    console.log(`✅ Backend v8 - Panel Admin Funcional en puerto ${PORT}`);
-    console.log(`🔑 API Key: Configurada ✓`);
-    console.log(`📞 Teléfono: ${NETVC_INFO.phone} | Horario: ${NETVC_INFO.schedule}`);
-    console.log(`🔐 Admin Panel: /admin (contraseña: ${ADMIN_PASSWORD})`);
+    console.log(`✅ Backend v9 - MEMORIA COMPLETA + PANEL FUNCIONAL en puerto ${PORT}`);
+    console.log(`📞 ${NETVC_INFO.phone} | ${NETVC_INFO.schedule}`);
 });
