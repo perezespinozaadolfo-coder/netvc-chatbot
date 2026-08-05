@@ -26,9 +26,20 @@ if (!API_KEY) {
 }
 
 const client = new Anthropic({ apiKey: API_KEY });
-const SUPPORT_TEAM = ['Carlos', 'María', 'Miguel', 'Andrea'];
+const SUPPORT_TEAM = ['Sharon', 'Abigail', 'Angel', 'Juan', 'Estefania', 'Francisco', 'Adolfo', 'Alessandra'];
 const CONVERSATIONS_FILE = path.join(__dirname, 'conversations.json');
 const CLIENTS_FILE = path.join(__dirname, 'clients.json');
+
+// Información de NetVC
+const NETVC_INFO = {
+    phone: '+52 686 392 0262',
+    email: 'Contacto@netvc.mx',
+    schedule: 'Lunes-Viernes 10am-6pm',
+    location: 'Mexicali, Baja California',
+    services: ['Consultoría Tecnológica', 'Diseño e Implementación', 'Seguridad y Backup', 'Soluciones en la Nube', 'Soporte Técnico 24/7', 'Administración de Proyectos'],
+    advantages: 'Nos adaptamos a cualquier proyecto TI, respuesta rápida, expertos certificados, equipo de ingenieros, precios competitivos, alcance en casi toda México',
+    pricing: 'Desde $1000/mes, consultorías desde $4000'
+};
 
 function loadConversations() {
     if (fs.existsSync(CONVERSATIONS_FILE)) {
@@ -63,16 +74,36 @@ app.post('/api/chat', async (req, res) => {
 
         const assignedPerson = personName || SUPPORT_TEAM[Math.floor(Math.random() * SUPPORT_TEAM.length)];
         
-        const systemPrompt = `Eres ${assignedPerson}, miembro del equipo de soporte de NetVC. REGLAS:
-- Habla como persona real, NO como bot
-- NO menciones que eres IA
-- Responde de forma natural y conversacional
-- Máximo 70 palabras
-- NO te presentes en cada mensaje (solo la primera vez)
-- Sé amable y profesional`;
+        const systemPrompt = `Eres ${assignedPerson}, Ingeniero/a especialista en TI de NetVC. Tu misión es CAPTAR CLIENTES identificando sus necesidades y proponiendo soluciones.
+
+SOBRE NETVC:
+- Teléfono: ${NETVC_INFO.phone}
+- Email: ${NETVC_INFO.email}
+- Horario: ${NETVC_INFO.schedule}
+- Ubicación: ${NETVC_INFO.location}
+- Servicios: ${NETVC_INFO.services.join(', ')}
+- Ventajas: ${NETVC_INFO.advantages}
+- Inversión: ${NETVC_INFO.pricing}
+
+ESTILO DE COMUNICACIÓN:
+✅ Sé consultor, no vendedor (haz preguntas diagnósticas)
+✅ Entiende el negocio del cliente primero
+✅ Propón soluciones específicas (no genéricas)
+✅ Menciona casos de éxito/referentes si es relevante
+✅ Siempre ofrece contacto directo: teléfono o email
+✅ Eres ingeniero experto, comunica con autoridad técnica
+✅ Máximo 100 palabras (claro y directo)
+✅ Habla natural, sin parecer bot
+✅ NUNCA te presentes en cada mensaje (solo primera vez)
+
+CIERRE DE VENTAS:
+- Cualifica al cliente: ¿Cuál es su dolor/necesidad?
+- Propone solución NetVC específica
+- Ofrece llamada/demo: "Podría ayudarte mejor en una llamada rápida, ¿te va bien a las [horario]?"
+- Siempre incluye contacto: +52 686 392 0262 o Contacto@netvc.mx`;
 
         const messages = [];
-        if (lastExchange) {
+        if (lastExchange && lastExchange.lastQuestion && lastExchange.lastResponse) {
             messages.push({
                 role: 'user',
                 content: lastExchange.lastQuestion
@@ -84,12 +115,12 @@ app.post('/api/chat', async (req, res) => {
         }
         messages.push({
             role: 'user',
-            content: message
+            content: message || 'Hola'
         });
 
         const response = await client.messages.create({
             model: 'claude-sonnet-4-6',
-            max_tokens: 200,
+            max_tokens: 300,
             system: systemPrompt,
             messages: messages
         });
