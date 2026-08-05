@@ -527,6 +527,7 @@ function viewReport(id){
 
 function downloadReport(projectId){
   window.location.href = '/api/download-report/'+projectId+'?pwd=${password}';
+}
 </script></body></html>`);
 });
 
