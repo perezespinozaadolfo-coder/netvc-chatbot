@@ -8,7 +8,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(express.static('public'));
 
 // CORS
 app.use((req, res, next) => {
@@ -29,28 +28,16 @@ if (!API_KEY) {
 const client = new Anthropic({ apiKey: API_KEY });
 const SUPPORT_TEAM = ['Sharon', 'Abigail', 'Angel', 'Juan', 'Estefania', 'Francisco', 'Adolfo', 'Alessandra', 'Francia'];
 const CONVERSATIONS_FILE = path.join(__dirname, 'conversations.json');
-const CLIENTS_FILE = path.join(__dirname, 'clients.json');
-const PROPOSALS_FILE = path.join(__dirname, 'proposals.json');
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'NetVC2024'; // Cambiar en producción
+const PROJECTS_FILE = path.join(__dirname, 'projects.json');
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'NetVC2024';
 
 // Información de NetVC
 const NETVC_INFO = {
     phone: '+52 686 392 0262',
     email: 'Contacto@netvc.mx',
-    schedule: 'Lunes-Viernes 10am-6pm',
+    schedule: 'Lunes-Viernes 10:30am-6:30pm',
     location: 'Mexicali, Baja California',
 };
-
-function loadProposals() {
-    if (fs.existsSync(PROPOSALS_FILE)) {
-        return JSON.parse(fs.readFileSync(PROPOSALS_FILE, 'utf8'));
-    }
-    return [];
-}
-
-function saveProposals(data) {
-    fs.writeFileSync(PROPOSALS_FILE, JSON.stringify(data, null, 2));
-}
 
 function loadConversations() {
     if (fs.existsSync(CONVERSATIONS_FILE)) {
@@ -63,18 +50,18 @@ function saveConversations(data) {
     fs.writeFileSync(CONVERSATIONS_FILE, JSON.stringify(data, null, 2));
 }
 
-function loadClients() {
-    if (fs.existsSync(CLIENTS_FILE)) {
-        return JSON.parse(fs.readFileSync(CLIENTS_FILE, 'utf8'));
+function loadProjects() {
+    if (fs.existsSync(PROJECTS_FILE)) {
+        return JSON.parse(fs.readFileSync(PROJECTS_FILE, 'utf8'));
     }
     return [];
 }
 
-function saveClients(data) {
-    fs.writeFileSync(CLIENTS_FILE, JSON.stringify(data, null, 2));
+function saveProjects(data) {
+    fs.writeFileSync(PROJECTS_FILE, JSON.stringify(data, null, 2));
 }
 
-// Endpoint: Chat ULTRA-PROFESIONAL
+// Endpoint: Chat EXPERTO EN RECOPILACIÓN DE DATOS
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, clientName, personName, lastExchange, clientPhone, clientEmail, messageCount } = req.body;
@@ -85,7 +72,7 @@ app.post('/api/chat', async (req, res) => {
 
         const assignedPerson = personName || SUPPORT_TEAM[Math.floor(Math.random() * SUPPORT_TEAM.length)];
         
-        const systemPrompt = `Eres ${assignedPerson}, Ingeniero/a Senior especialista en TI de NetVC. Eres UN PROFESIONAL DE ÉLITE: experto técnico + recepcionista de lujo + secretaria eficiente.
+        const systemPrompt = `Eres ${assignedPerson}, Ingeniero/a Senior especialista en TI de NetVC. Eres EXPERTO en recopilación de datos técnicos y comerciales.
 
 INFORMACIÓN DE NETVC:
 - Teléfono: ${NETVC_INFO.phone} | Email: ${NETVC_INFO.email}
@@ -93,71 +80,65 @@ INFORMACIÓN DE NETVC:
 - Servicios: Consultoría TI, Implementación, Seguridad, Nube, Soporte 24/7, Proyectos TI
 - Inversión: Desde $1,000/mes, consultorías desde $4,000
 
-CLIENTE ACTUAL: ${clientName} | Tel: ${clientPhone || 'No proporcionado'} | Email: ${clientEmail || 'No proporcionado'}
+CLIENTE: ${clientName} | ${clientPhone} | ${clientEmail}
 
-ESTILO DE COMUNICACIÓN - PROFESIONAL DE ÉLITE:
+ESTRATEGIA - RECOPILACIÓN PROFUNDA DE DATOS:
 
-1. PRESENTACIÓN (solo mensaje 1):
-   - Te presentas UNA sola vez de forma breve y profesional
-   - "Soy [tu nombre], especialista en TI de NetVC. ¿Cuéntame tu situación?"
+FASE 1 - ESCUCHA INICIAL (mensaje 1-2):
+- Presentación breve y profesional
+- Dejar que cliente explique su necesidad libremente
+- Una pregunta de seguimiento natural
 
-2. ESCUCHA ACTIVA (mensajes 2-3):
-   - Dejas que el cliente EXPLIQUE su necesidad
-   - Haces MÁXIMO UNA pregunta de seguimiento (puntual, sin opciones)
-   - Eres empático pero directo
-   - NO hagas listas ni opciones múltiples
-   - Máximo 70 palabras por respuesta
+FASE 2 - PREGUNTAS DIAGNÓSTICAS PROFUNDAS (mensaje 3-10):
+Haz 1 pregunta por mensaje, muy específica, sin opciones. Información CRÍTICA a recopilar:
 
-3. DIAGNÓSTICO EFICIENTE (mensajes 4-5):
-   - MÁXIMO 2-3 preguntas claves muy específicas
-   - Pregunta datos que REALMENTE importan para presupuestar:
-     * Estado actual exacto
-     * Urgencia/timeline
-     * Tamaño de operación (empleados, equipos, inversión aprox)
-     * Mayor problema/pain point
-     * Si hay presupuesto definido
+INFRAESTRUCTURA:
+- Estado actual exacto (equipos, sistemas, servidores)
+- Cantidad de usuarios/dispositivos
+- Ubicaciones geográficas involucradas
+- Distancias entre puntos (si aplica)
 
-4. DETECCIÓN DE CIERRE:
-   - Si cliente dice "me tengo que ir", "ya me voy", "luego", "ahora no", TERMINA
-   - Inmediatamente genera RESUMEN y propón email
+REQUISITOS TÉCNICOS:
+- Velocidad/ancho de banda requerido
+- Disponibilidad/SLA requerido (99.9%, 99.95%, etc)
+- Redundancia o failover necesario
+- Tipo de tráfico (datos, video, voz)
+- Integración con sistemas existentes
 
-5. GENERACIÓN DE RESUMEN EJECUTIVO (cuando tengas suficiente info):
-   "Perfecto, aquí tengo lo que necesito para hacerte presupuesto:
+PRESUPUESTO Y TIMELINE:
+- Presupuesto disponible (rango)
+- Timeline/urgencia
+- Fases de implementación preferidas
 
-   📋 RESUMEN DE TU PROYECTO:
-   - Empresa: [info empresa]
-   - Problema/Necesidad: [resumen claro]
-   - Urgencia: [alta/media/baja]
-   - Equipos/Usuarios: [cantidad]
-   - Budget aproximado: [si lo mencionó]
-   - Próxima acción: [lo que recomiendas hacer]
+SOPORTE Y MANTENIMIENTO:
+- Soporte técnico requerido (24/7, horario, respuesta)
+- Administración remota necesaria
+- Capacitación del personal
 
-   Para hacerte un presupuesto exacto, necesito que me envíes un email a ${NETVC_INFO.email} con este resumen y cualquier detalle adicional.
+PHASE 3 - DETECCIÓN DE DATOS PENDIENTES:
+Si cliente dice "no sé", "no tengo ese dato", "luego te lo paso", anota como ⚠️ PENDIENTE
+Continúa con siguientes preguntas
+Sé empático: "Sin problema, eso lo envías por email después"
 
-   📞 Si prefieres hablar directo: ${NETVC_INFO.phone} (${NETVC_INFO.schedule})
-   ¡Te esperamos!"
+PHASE 4 - CIERRE Y GENERACIÓN DE REPORTE:
+Cuando tengas suficiente información (después de 8-10 preguntas), cierra así:
 
-6. CARACTERÍSTICAS:
-   ✅ Máximo 3 preguntas TOTALES en toda la conversación
-   ✅ Preguntas muy puntuales (SIN opciones, SIN listas)
-   ✅ Detecta urgencia y adapta tono
-   ✅ NO repite preguntas
-   ✅ NO pide lo que ya dijo el cliente
-   ✅ Respuestas concisas (60-80 palabras máximo)
-   ✅ Cierra profesionalmente cuando detecta que debe terminar
-   ✅ Genera RESUMEN cuando tiene suficiente info (4-5 mensajes)
-   ✅ Eres SECRETARIA EFICIENTE: anotas todo, organizas info, resumes
-   ✅ Eres EXPERTO EN TI: comprendes problemas técnicos a fondo
-   ✅ Eres RECEPCIONISTA: amable, profesional, respetas el tiempo del cliente
+"Perfecto ${clientName}, tengo un panorama claro de tu proyecto. 📋
 
-TONE: Profesional, directo, eficiente, empático, SIN frivolidad. Como hablando con el CEO de una empresa.
+NUESTROS INGENIEROS EXPERTOS analizarán toda la información y se pondrán en contacto contigo lo antes posible con una propuesta y presupuesto detallado.
+
+Si en el camino tienes dudas o datos que no tenías a mano, escríbenos a ${NETVC_INFO.email} o llámanos al ${NETVC_INFO.phone} (${NETVC_INFO.schedule}).
+
+¡Gracias por confiar en NetVC! 🚀"
 
 IMPORTANTE:
-- Si el cliente menciona que se va, CIERRA INMEDIATAMENTE
-- No hagas más de 3 preguntas en TODA la sesión
-- Cada pregunta debe ser MUY ESPECÍFICA y breve
-- Genera resumen cuando sientas que tienes suficiente información
-- Siempre termina con teléfono y email`;
+- Máximo 1 pregunta por mensaje (preguntas muy puntuales)
+- Si cliente menciona "me voy", "luego", "ahora no" → CIERRA CON EL MENSAJE DE ARRIBA
+- Respuestas breves (60-80 palabras máximo)
+- SÉ EMPATICO pero DIRECTO y PROFESIONAL
+- NO repitas preguntas
+- Eres EXPERTO: haz preguntas que muestre conocimiento técnico
+- Tono: CEO a CEO, profesional de élite`;
 
         const messages = [];
         if (lastExchange && lastExchange.lastQuestion && lastExchange.lastResponse) {
@@ -217,8 +198,8 @@ IMPORTANTE:
     }
 });
 
-// Endpoint: Generar Propuesta Profesional (solo admin)
-app.post('/api/generate-proposal', async (req, res) => {
+// Endpoint: Generar Reporte y Presupuesto (solo admin)
+app.post('/api/generate-project-report', async (req, res) => {
     try {
         const { clientName, clientEmail, clientPhone, conversationHistory, password } = req.body;
 
@@ -230,8 +211,8 @@ app.post('/api/generate-proposal', async (req, res) => {
             return res.status(400).json({ error: 'Faltan datos' });
         }
 
-        // Crear prompt para generar propuesta
-        const proposalPrompt = `Basándote en la siguiente conversación con un cliente potencial de NetVC, genera una PROPUESTA PROFESIONAL Y DETALLADA.
+        // Crear prompt para analizar y generar reporte
+        const reportPrompt = `Analiza esta conversación con un cliente de NetVC y genera un REPORTE DE PROYECTO DETALLADO.
 
 CLIENTE:
 - Nombre: ${clientName}
@@ -245,104 +226,138 @@ INFORMACIÓN DE NETVC:
 - Servicios: Consultoría TI, Implementación, Seguridad, Nube, Soporte 24/7, Proyectos TI
 - Ubicación: Mexicali, Baja California
 - Inversión típica: Desde $1,000/mes, consultorías desde $4,000
+- Contatos: ${NETVC_INFO.phone} | ${NETVC_INFO.email}
 
-GENERA UNA PROPUESTA CON ESTOS APARTADOS (formato markdown):
+GENERA UN REPORTE CON ESTE FORMATO (JSON):
 
-## 📋 PROPUESTA DE PROYECTO - ${clientName}
+{
+  "clientInfo": {
+    "nombre": "${clientName}",
+    "email": "${clientEmail}",
+    "telefono": "${clientPhone}",
+    "timestamp": "${new Date().toISOString()}"
+  },
+  
+  "datosRecopilados": {
+    "tipoProyecto": "Describe el tipo de proyecto identificado",
+    "infraestructuraActual": "Equipos, sistemas, ubicaciones",
+    "alcanceProyecto": "Qué se incluye en el proyecto",
+    "usuarios": "Cantidad de usuarios/dispositivos",
+    "ubicaciones": "Ubicaciones geográficas involucradas"
+  },
+  
+  "datosPendientes": [
+    "Dato pendiente 1",
+    "Dato pendiente 2"
+  ],
+  
+  "requisitosTecnicos": {
+    "velocidad": "Ancho de banda requerido",
+    "disponibilidad": "SLA/Disponibilidad requerida",
+    "redundancia": "Si es necesaria redundancia",
+    "soporteTecnico": "Tipo de soporte requerido",
+    "notas": "Notas técnicas relevantes"
+  },
+  
+  "presupuestoProvisional": {
+    "componente1": {
+      "descripcion": "Descripción del servicio/equipo",
+      "costoMensual": 500,
+      "costoInstalacion": 2000,
+      "notas": "Detalles relevantes"
+    },
+    "componente2": {
+      "descripcion": "Descripción del servicio/equipo",
+      "costoMensual": 300,
+      "costoInstalacion": 0,
+      "notas": "Detalles relevantes"
+    }
+  },
+  
+  "totalPresupuesto": {
+    "costoMensual": 800,
+    "costoInstalacionInicial": 2000,
+    "costoAnual": 9600,
+    "notas": "Estos costos son PROVISIONALES. Pueden variar según datos pendientes."
+  },
+  
+  "timeline": {
+    "fase1": "Descripción (estimado X semanas)",
+    "fase2": "Descripción (estimado X semanas)",
+    "fase3": "Descripción (estimado X semanas)"
+  },
+  
+  "proximosPasos": [
+    "Cliente debe enviar datos pendientes a ${NETVC_INFO.email}",
+    "NetVC revisa y genera propuesta final",
+    "Llamada con cliente para aclarar dudas",
+    "Firma de contrato y kick-off del proyecto"
+  ],
+  
+  "recomendaciones": "Recomendaciones de NetVC basadas en el proyecto"
+}
 
-### 1. RESUMEN EJECUTIVO
-Breve resumen del problema, solución y beneficios (3-4 líneas máximo)
-
-### 2. ANÁLISIS DE LA SITUACIÓN ACTUAL
-- Estado actual de infraestructura/sistemas
-- Problemas identificados
-- Riesgos actuales
-
-### 3. SOLUCIÓN PROPUESTA
-- Servicios específicos que aplican
-- Tecnologías/herramientas a usar
-- Fases de implementación
-
-### 4. TIMELINE
-- Fase 1: [descripción] (X semanas)
-- Fase 2: [descripción] (X semanas)
-- Fase 3: [descripción] (X semanas)
-- Tiempo total estimado
-
-### 5. BENEFICIOS ESPERADOS
-- Beneficio 1
-- Beneficio 2
-- Beneficio 3
-- Beneficio 4
-
-### 6. PROPUESTA DE PRESUPUESTO
-
-**Desglose de Costos:**
-- Servicio 1: $X/mes
-- Servicio 2: $X/mes
-- Implementación inicial: $X (único pago)
-- Total Mensual: $X
-- Total Primer Año: $X
-
-**Términos:**
-- Contrato: 12 meses (renovable)
-- Soporte incluido: 24/7
-- Pago: Mensual/Inicial
-- SLA: 99.5% de uptime
-
-### 7. PRÓXIMOS PASOS
-1. Revisión y aprobación de la propuesta
-2. Firma del contrato
-3. Kick-off del proyecto
-4. Implementación según timeline
-
----
-**Nota para NetVC:** Esta es una propuesta BASE. Ajusta precios según complejidad y presupuesto del cliente.`;
+IMPORTANTE: 
+- Los datos pendientes deben ser ESPECÍFICOS (no genéricos)
+- El presupuesto debe ser REALISTA basado en lo que se recopiló
+- Si falta información crítica, lo anotás como pendiente
+- Sé profesional y detallado`;
 
         const messages = [
             {
                 role: 'user',
-                content: proposalPrompt
+                content: reportPrompt
             }
         ];
 
         const response = await client.messages.create({
             model: 'claude-sonnet-4-6',
-            max_tokens: 2000,
-            system: 'Eres especialista en redacción de propuestas técnicas y comerciales. Genera propuestas profesionales, detalladas y convincentes.',
+            max_tokens: 3000,
+            system: 'Eres analista de proyectos TI senior de NetVC. Generas reportes técnicos y comerciales profesionales en formato JSON.',
             messages: messages
         });
 
-        const proposalText = response.content[0].text;
+        const reportText = response.content[0].text;
+        
+        // Parsear JSON del reporte
+        let reportData;
+        try {
+            // Extraer JSON del texto si está envuelto
+            const jsonMatch = reportText.match(/\{[\s\S]*\}/);
+            reportData = JSON.parse(jsonMatch ? jsonMatch[0] : reportText);
+        } catch (e) {
+            console.error('Error parseando JSON:', e);
+            reportData = { rawReport: reportText, error: 'No se pudo parsear JSON' };
+        }
 
-        // Guardar propuesta
-        const proposals = loadProposals();
-        const newProposal = {
+        // Guardar proyecto
+        const projects = loadProjects();
+        const newProject = {
             id: Date.now(),
             clientName: clientName,
             clientEmail: clientEmail,
             clientPhone: clientPhone,
             timestamp: new Date().toISOString(),
-            proposal: proposalText,
-            status: 'pending' // pending, sent, approved, rejected
+            report: reportData,
+            status: 'pending_review' // pending_review, ready_to_send, sent, approved
         };
 
-        proposals.push(newProposal);
-        saveProposals(proposals);
+        projects.push(newProject);
+        saveProjects(projects);
 
         res.json({
             success: true,
-            proposal: proposalText,
-            proposalId: newProposal.id
+            report: reportData,
+            projectId: newProject.id
         });
 
     } catch (error) {
-        console.error('Error generando propuesta:', error);
-        res.status(500).json({ error: 'Error generando propuesta', details: error.message });
+        console.error('Error generando reporte:', error);
+        res.status(500).json({ error: 'Error generando reporte', details: error.message });
     }
 });
 
-// Endpoint: Panel Admin (protegido)
+// Endpoint: Panel Admin
 app.get('/admin', (req, res) => {
     const password = req.query.pwd;
     
@@ -381,6 +396,7 @@ app.get('/admin', (req, res) => {
 
     // Si la contraseña es correcta, mostrar dashboard
     const conversations = loadConversations();
+    const projects = loadProjects();
     
     // Agrupar conversaciones por cliente
     const clientsMap = {};
@@ -413,7 +429,7 @@ app.get('/admin', (req, res) => {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
         header { background: #FF8C00; color: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; }
         h1 { font-size: 2rem; }
         .logout { background: white; color: #FF8C00; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; font-weight: 600; }
@@ -428,7 +444,7 @@ app.get('/admin', (req, res) => {
         .client-header { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 1rem; align-items: center; margin-bottom: 1rem; }
         .client-name { font-weight: 600; color: #333; }
         .client-contact { color: #666; font-size: 0.9rem; }
-        .client-messages { display: none; padding: 1rem; background: #f9f9f9; border-top: 1px solid #eee; max-height: 400px; overflow-y: auto; }
+        .client-messages { display: none; padding: 1rem; background: #f9f9f9; border-top: 1px solid #eee; max-height: 400px; overflow-y: auto; margin-bottom: 1rem; }
         .client-messages.open { display: block; }
         .message { margin-bottom: 1rem; }
         .message.user { text-align: right; }
@@ -437,14 +453,16 @@ app.get('/admin', (req, res) => {
         .message.user .bubble { background: #FF8C00; color: white; }
         .message.bot .bubble { background: #e0e0e0; color: #333; }
         .timestamp { font-size: 0.8rem; color: #999; margin-top: 0.25rem; }
+        .btn-group { display: flex; gap: 0.5rem; }
         .toggle-btn { background: #FF8C00; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
-        .toggle-btn:hover { background: #E67E00; }
+        .toggle-btn.generate { background: #4CAF50; }
+        .toggle-btn:hover { opacity: 0.9; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📊 NetVC Admin Panel</h1>
+            <h1>📊 NetVC Admin Panel v7</h1>
             <a class="logout" href="/">Cerrar sesión</a>
         </header>
 
@@ -457,11 +475,16 @@ app.get('/admin', (req, res) => {
                 <h3>${conversations.length}</h3>
                 <p>Mensajes Totales</p>
             </div>
+            <div class="stat-box">
+                <h3>${projects.length}</h3>
+                <p>Reportes Generados</p>
+            </div>
         </div>
 
         <div class="clients-list">
             ${clients.length === 0 ? '<div style="padding: 2rem; text-align: center; color: #999;">Sin clientes aún</div>' : clients.map((client, idx) => {
                 const clientConversations = conversations.filter(c => c.clientName === client.name);
+                const clientProject = projects.find(p => p.clientName === client.name);
                 return `
                 <div class="client-item">
                     <div class="client-header">
@@ -471,22 +494,28 @@ app.get('/admin', (req, res) => {
                         </div>
                         <div class="client-contact">${client.email}</div>
                         <div class="client-contact"><strong>${client.person}</strong></div>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <button class="toggle-btn" onclick="toggleMessages(${idx})">Ver Chat</button>
-                            <button class="toggle-btn" style="background: #4CAF50;" onclick="generateProposal('${client.name}', '${client.email}', '${client.phone}', ${idx})">📄 Propuesta</button>
+                        <div class="btn-group">
+                            <button class="toggle-btn" onclick="toggleMessages(${idx})">💬 Chat</button>
+                            <button class="toggle-btn generate" onclick="generateReport('${client.name}', '${client.email}', '${client.phone}', ${idx})">📄 Reporte</button>
                         </div>
                     </div>
                     <div class="client-messages" id="messages-${idx}">
-                        ${clientConversations.map(msg => `
+                        ${clientConversations.map(msg => \`
                             <div class="message user">
-                                <div class="bubble">${msg.userMessage}</div>
-                                <div class="timestamp">${new Date(msg.timestamp).toLocaleString('es-MX')}</div>
+                                <div class="bubble">\${msg.userMessage}</div>
+                                <div class="timestamp">\${new Date(msg.timestamp).toLocaleString('es-MX')}</div>
                             </div>
                             <div class="message bot">
-                                <div class="bubble">${msg.botResponse}</div>
+                                <div class="bubble">\${msg.botResponse}</div>
                             </div>
-                        `).join('')}
+                        \`).join('')}
                     </div>
+                    ${clientProject ? \`
+                        <div style="background: #f0f0f0; padding: 1rem; border-radius: 4px; margin-top: 1rem;">
+                            <h4 style="color: #FF8C00; margin-bottom: 0.5rem;">📊 Reporte Generado</h4>
+                            <button class="toggle-btn" onclick="viewReport('\${JSON.stringify(clientProject.report).replace(/'/g, '&apos;')}')">Ver Reporte Completo</button>
+                        </div>
+                    \` : ''}
                 </div>
                 `;
             }).join('')}
@@ -494,15 +523,17 @@ app.get('/admin', (req, res) => {
     </div>
 
     <script>
+        const pwd = '${password}';
+
         function toggleMessages(idx) {
             const el = document.getElementById('messages-' + idx);
             el.classList.toggle('open');
         }
 
-        async function generateProposal(clientName, clientEmail, clientPhone, idx) {
+        async function generateReport(clientName, clientEmail, clientPhone, idx) {
             try {
                 // Obtener conversaciones del cliente
-                const response = await fetch('/api/admin/conversations?pwd=${password}');
+                const response = await fetch('/api/admin/conversations?pwd=' + pwd);
                 const conversations = await response.json();
                 const clientConversations = conversations.filter(c => c.clientName === clientName);
 
@@ -511,8 +542,8 @@ app.get('/admin', (req, res) => {
                     return;
                 }
 
-                // Generar propuesta
-                const proposalResponse = await fetch('/api/generate-proposal', {
+                // Generar reporte
+                const reportResponse = await fetch('/api/generate-project-report', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -520,41 +551,111 @@ app.get('/admin', (req, res) => {
                         clientEmail: clientEmail,
                         clientPhone: clientPhone,
                         conversationHistory: clientConversations,
-                        password: '${password}'
+                        password: pwd
                     })
                 });
 
-                const data = await proposalResponse.json();
+                const data = await reportResponse.json();
 
                 if (data.success) {
-                    // Mostrar propuesta en modal
-                    const modal = document.createElement('div');
-                    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;';
-                    modal.innerHTML = \`
-                        <div style="background: white; padding: 2rem; border-radius: 8px; max-width: 900px; max-height: 90vh; overflow-y: auto; position: relative;">
-                            <button onclick="this.closest('div').parentElement.remove()" style="position: absolute; top: 1rem; right: 1rem; background: #FF8C00; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">✕ Cerrar</button>
-                            <div style="margin-top: 2rem;">
-                                \${data.proposal.replace(/\\n/g, '<br>').replace(/##/g, '<h2 style="color: #FF8C00; margin-top: 1.5rem;">').replace(/###/g, '<h3 style="color: #666; margin-top: 1rem;")}
-                            </div>
-                            <div style="margin-top: 2rem; display: flex; gap: 1rem;">
-                                <button onclick="copyToClipboard(\`\${data.proposal}\`)" style="flex: 1; padding: 0.75rem; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">📋 Copiar Propuesta</button>
-                                <button onclick="this.closest('div').parentElement.remove()" style="flex: 1; padding: 0.75rem; background: #FF8C00; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Cerrar</button>
-                            </div>
-                        </div>
-                    \`;
-                    document.body.appendChild(modal);
+                    viewReport(JSON.stringify(data.report, null, 2));
                 } else {
-                    alert('Error generando propuesta: ' + data.error);
+                    alert('Error: ' + data.error);
                 }
             } catch (error) {
                 console.error('Error:', error);
-                alert('Error generando propuesta');
+                alert('Error generando reporte');
+            }
+        }
+
+        function viewReport(reportJson) {
+            try {
+                const report = typeof reportJson === 'string' ? JSON.parse(reportJson) : reportJson;
+                
+                const modal = document.createElement('div');
+                modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000;';
+                
+                const content = \`
+                    <div style="background: white; padding: 2rem; border-radius: 8px; max-width: 1200px; max-height: 90vh; overflow-y: auto; position: relative;">
+                        <button onclick="this.closest('div').parentElement.remove()" style="position: absolute; top: 1rem; right: 1rem; background: #FF8C00; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">✕</button>
+                        
+                        <h2 style="color: #FF8C00; margin-bottom: 1.5rem;">📊 REPORTE DE PROYECTO</h2>
+                        
+                        <h3 style="color: #333; margin-top: 1.5rem; border-bottom: 2px solid #FF8C00; padding-bottom: 0.5rem;">📋 Información del Cliente</h3>
+                        <p><strong>Nombre:</strong> \${report.clientInfo?.nombre}</p>
+                        <p><strong>Email:</strong> \${report.clientInfo?.email}</p>
+                        <p><strong>Teléfono:</strong> \${report.clientInfo?.telefono}</p>
+                        
+                        <h3 style="color: #333; margin-top: 1.5rem; border-bottom: 2px solid #FF8C00; padding-bottom: 0.5rem;">✅ Datos Recopilados</h3>
+                        <p><strong>Tipo de Proyecto:</strong> \${report.datosRecopilados?.tipoProyecto}</p>
+                        <p><strong>Infraestructura Actual:</strong> \${report.datosRecopilados?.infraestructuraActual}</p>
+                        <p><strong>Alcance:</strong> \${report.datosRecopilados?.alcanceProyecto}</p>
+                        <p><strong>Usuarios/Dispositivos:</strong> \${report.datosRecopilados?.usuarios}</p>
+                        
+                        <h3 style="color: #FF6B35; margin-top: 1.5rem; border-bottom: 2px solid #FF6B35; padding-bottom: 0.5rem;">⚠️ Datos Pendientes (ENVIAR POR EMAIL)</h3>
+                        <ul style="margin-left: 1.5rem;">
+                            \${(report.datosPendientes || []).map(d => \`<li>\${d}</li>\`).join('')}
+                        </ul>
+                        <p style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;"><strong>👉 Cliente debe enviar estos datos a: Contacto@netvc.mx</strong></p>
+                        
+                        <h3 style="color: #333; margin-top: 1.5rem; border-bottom: 2px solid #FF8C00; padding-bottom: 0.5rem;">🔧 Requisitos Técnicos</h3>
+                        <p><strong>Velocidad:</strong> \${report.requisitosTecnicos?.velocidad}</p>
+                        <p><strong>Disponibilidad:</strong> \${report.requisitosTecnicos?.disponibilidad}</p>
+                        <p><strong>Soporte Técnico:</strong> \${report.requisitosTecnicos?.soporteTecnico}</p>
+                        
+                        <h3 style="color: #4CAF50; margin-top: 1.5rem; border-bottom: 2px solid #4CAF50; padding-bottom: 0.5rem;">💰 PRESUPUESTO PROVISIONAL</h3>
+                        <div style="background: #f9f9f9; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+                            \${Object.keys(report.presupuestoProvisional || {}).map(key => {
+                                if (key === 'totalPresupuesto') return '';
+                                const comp = report.presupuestoProvisional[key];
+                                return \`
+                                    <div style="margin-bottom: 1rem; border-left: 3px solid #FF8C00; padding-left: 1rem;">
+                                        <strong>\${comp.descripcion}</strong>
+                                        <p>💵 Mensual: \$\${comp.costoMensual.toLocaleString('es-MX')} | 💵 Instalación: \$\${comp.costoInstalacion.toLocaleString('es-MX')}</p>
+                                    </div>
+                                \`;
+                            }).join('')}
+                        </div>
+                        
+                        <div style="background: #FFF3E0; padding: 1.5rem; border-radius: 4px; border-left: 4px solid #FF8C00;">
+                            <h4 style="color: #FF8C00; margin-bottom: 0.5rem;">TOTAL PRESUPUESTO (PROVISIONAL)</h4>
+                            <p><strong>Costo Mensual:</strong> \$\${report.totalPresupuesto?.costoMensual?.toLocaleString('es-MX')}</p>
+                            <p><strong>Instalación Inicial:</strong> \$\${report.totalPresupuesto?.costoInstalacionInicial?.toLocaleString('es-MX')}</p>
+                            <p><strong>Costo Anual:</strong> \$\${report.totalPresupuesto?.costoAnual?.toLocaleString('es-MX')}</p>
+                            <p style="font-size: 0.9rem; color: #666; margin-top: 0.5rem; font-style: italic;">\${report.totalPresupuesto?.notas}</p>
+                        </div>
+                        
+                        <h3 style="color: #333; margin-top: 1.5rem; border-bottom: 2px solid #FF8C00; padding-bottom: 0.5rem;">📅 Timeline</h3>
+                        \${Object.keys(report.timeline || {}).map(phase => \`
+                            <p><strong>\${phase.toUpperCase()}:</strong> \${report.timeline[phase]}</p>
+                        \`).join('')}
+                        
+                        <h3 style="color: #333; margin-top: 1.5rem; border-bottom: 2px solid #FF8C00; padding-bottom: 0.5rem;">🎯 Próximos Pasos</h3>
+                        <ol style="margin-left: 1.5rem;">
+                            \${(report.proximosPasos || []).map(paso => \`<li>\${paso}</li>\`).join('')}
+                        </ol>
+                        
+                        <h3 style="color: #333; margin-top: 1.5rem; border-bottom: 2px solid #FF8C00; padding-bottom: 0.5rem;">💡 Recomendaciones</h3>
+                        <p>\${report.recomendaciones}</p>
+                        
+                        <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+                            <button onclick="copyToClipboard(\\\`\${JSON.stringify(report, null, 2)}\\\`);" style="flex: 1; padding: 0.75rem; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">📋 Copiar JSON</button>
+                            <button onclick="this.closest('div').parentElement.remove()" style="flex: 1; padding: 0.75rem; background: #FF8C00; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Cerrar</button>
+                        </div>
+                    </div>
+                \`;
+                
+                modal.innerHTML = content;
+                document.body.appendChild(modal);
+            } catch (e) {
+                console.error('Error:', e);
+                alert('Error mostrando reporte');
             }
         }
 
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => {
-                alert('✅ Propuesta copiada al portapapeles');
+                alert('✅ Reporte copiado al portapapeles');
             });
         }
     </script>
@@ -563,7 +664,7 @@ app.get('/admin', (req, res) => {
     `);
 });
 
-// API: Obtener conversaciones (protegido)
+// API: Obtener conversaciones
 app.get('/api/admin/conversations', (req, res) => {
     const password = req.query.pwd;
     if (!password || password !== ADMIN_PASSWORD) {
@@ -572,50 +673,10 @@ app.get('/api/admin/conversations', (req, res) => {
     res.json(loadConversations());
 });
 
-// API: Obtener clientes (protegido)
-app.get('/api/admin/clients', (req, res) => {
-    const password = req.query.pwd;
-    if (!password || password !== ADMIN_PASSWORD) {
-        return res.status(401).json({ error: 'No autorizado' });
-    }
-    res.json(loadClients());
-});
-
-// Endpoint: Guardar datos del cliente
-app.post('/api/save-client', (req, res) => {
-    try {
-        const { clientName, personName, email, phone, summary } = req.body;
-
-        if (!clientName || !email) {
-            return res.status(400).json({ error: 'Faltan campos requeridos' });
-        }
-
-        const clients = loadClients();
-        clients.push({
-            timestamp: new Date().toISOString(),
-            clientName: clientName,
-            personName: personName,
-            email: email,
-            phone: phone,
-            summary: summary
-        });
-        saveClients(clients);
-
-        res.json({
-            success: true,
-            message: 'Datos guardados correctamente'
-        });
-
-    } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'Error guardando datos' });
-    }
-});
-
 // Iniciar servidor
 app.listen(PORT, () => {
-    console.log(`✅ Backend v6 - Chatbot Ultra Profesional con Admin en puerto ${PORT}`);
+    console.log(`✅ Backend v7 - Chatbot Experto en Recopilación Profunda en puerto ${PORT}`);
     console.log(`🔑 API Key: Configurada ✓`);
-    console.log(`📞 Teléfono: ${NETVC_INFO.phone} | Email: ${NETVC_INFO.email}`);
+    console.log(`📞 Teléfono: ${NETVC_INFO.phone} | Horario: ${NETVC_INFO.schedule}`);
     console.log(`🔐 Admin Panel: /admin (contraseña: ${ADMIN_PASSWORD})`);
 });
