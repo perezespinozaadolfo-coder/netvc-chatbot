@@ -419,6 +419,25 @@ app.get('/admin', (req, res) => {
 
     const clients = Object.values(clientsMap);
 
+    const clientsHtml = clients.map((client, idx) => {
+        const clientConversations = conversations.filter(c => c.clientName === client.name);
+        const clientProject = projects.find(p => p.clientName === client.name);
+        
+        let messagesHtml = '';
+        clientConversations.forEach(msg => {
+            messagesHtml += '<div class="message user"><div class="bubble">' + msg.userMessage + '</div><div class="timestamp">' + new Date(msg.timestamp).toLocaleString('es-MX') + '</div></div>';
+            messagesHtml += '<div class="message bot"><div class="bubble">' + msg.botResponse + '</div></div>';
+        });
+        
+        let projectHtml = '';
+        if (clientProject) {
+            const reportStr = JSON.stringify(clientProject.report).replace(/'/g, '&apos;');
+            projectHtml = '<div style="background: #f0f0f0; padding: 1rem; border-radius: 4px; margin-top: 1rem;"><h4 style="color: #FF8C00; margin-bottom: 0.5rem;">📊 Reporte Generado</h4><button class="toggle-btn" onclick="viewReport(\'' + reportStr + '\')">Ver Reporte Completo</button></div>';
+        }
+        
+        return '<div class="client-item"><div class="client-header"><div><div class="client-name">' + client.name + '</div><div class="client-contact">' + client.phone + '</div></div><div class="client-contact">' + client.email + '</div><div class="client-contact"><strong>' + client.person + '</strong></div><div class="btn-group"><button class="toggle-btn" onclick="toggleMessages(' + idx + ')">💬 Chat</button><button class="toggle-btn generate" onclick="generateReport(\'' + client.name + '\', \'' + client.email + '\', \'' + client.phone + '\', ' + idx + ')">📄 Reporte</button></div></div><div class="client-messages" id="messages-' + idx + '">' + messagesHtml + '</div>' + projectHtml + '</div>';
+    }).join('');
+
     res.send(`
 <!DOCTYPE html>
 <html lang="es">
@@ -482,43 +501,7 @@ app.get('/admin', (req, res) => {
         </div>
 
         <div class="clients-list">
-            ${clients.length === 0 ? '<div style="padding: 2rem; text-align: center; color: #999;">Sin clientes aún</div>' : clients.map((client, idx) => {
-                const clientConversations = conversations.filter(c => c.clientName === client.name);
-                const clientProject = projects.find(p => p.clientName === client.name);
-                return `
-                <div class="client-item">
-                    <div class="client-header">
-                        <div>
-                            <div class="client-name">${client.name}</div>
-                            <div class="client-contact">${client.phone}</div>
-                        </div>
-                        <div class="client-contact">${client.email}</div>
-                        <div class="client-contact"><strong>${client.person}</strong></div>
-                        <div class="btn-group">
-                            <button class="toggle-btn" onclick="toggleMessages(${idx})">💬 Chat</button>
-                            <button class="toggle-btn generate" onclick="generateReport('${client.name}', '${client.email}', '${client.phone}', ${idx})">📄 Reporte</button>
-                        </div>
-                    </div>
-                    <div class="client-messages" id="messages-${idx}">
-                        ${clientConversations.map(msg => \`
-                            <div class="message user">
-                                <div class="bubble">\${msg.userMessage}</div>
-                                <div class="timestamp">\${new Date(msg.timestamp).toLocaleString('es-MX')}</div>
-                            </div>
-                            <div class="message bot">
-                                <div class="bubble">\${msg.botResponse}</div>
-                            </div>
-                        \`).join('')}
-                    </div>
-                    ${clientProject ? \`
-                        <div style="background: #f0f0f0; padding: 1rem; border-radius: 4px; margin-top: 1rem;">
-                            <h4 style="color: #FF8C00; margin-bottom: 0.5rem;">📊 Reporte Generado</h4>
-                            <button class="toggle-btn" onclick="viewReport('\${JSON.stringify(clientProject.report).replace(/'/g, '&apos;')}')">Ver Reporte Completo</button>
-                        </div>
-                    \` : ''}
-                </div>
-                `;
-            }).join('')}
+            ${clients.length === 0 ? '<div style="padding: 2rem; text-align: center; color: #999;">Sin clientes aún</div>' : clientsHtml}
         </div>
     </div>
 
