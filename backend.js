@@ -306,6 +306,83 @@ RESPONDE SOLO CON ESTE JSON (sin explicaciones):
     }
 });
 
+// GET: Descargar Reporte
+app.get('/api/download-report/:projectId', (req, res) => {
+    try {
+        const pwd = req.query.pwd;
+        if (pwd !== ADMIN_PASSWORD) {
+            return res.status(401).json({ error: 'No autorizado' });
+        }
+
+        const projects = loadProjects();
+        const project = projects.find(p => p.id === parseInt(req.params.projectId));
+
+        if (!project) {
+            return res.status(404).json({ error: 'Proyecto no encontrado' });
+        }
+
+        const r = project.report;
+        let txt = `REPORTE DE PROYECTO - NETVC\n`;
+        txt += `${'='.repeat(80)}\n\n`;
+        txt += `CLIENTE: ${r.clientInfo.nombre}\n`;
+        txt += `EMAIL: ${r.clientInfo.email}\n`;
+        txt += `TELÉFONO: ${r.clientInfo.telefono}\n`;
+        txt += `FECHA: ${new Date(project.timestamp).toLocaleString('es-MX')}\n\n`;
+        
+        txt += `DATOS RECOPILADOS\n`;
+        txt += `${'-'.repeat(80)}\n`;
+        txt += `Tipo de Proyecto: ${r.datosRecopilados.tipoProyecto}\n`;
+        txt += `Escala: ${r.datosRecopilados.escala}\n`;
+        txt += `Ubicación: ${r.datosRecopilados.ubicacion}\n`;
+        txt += `Infraestructura Actual: ${r.datosRecopilados.infraestructura}\n\n`;
+        
+        if (r.datosPendientes && r.datosPendientes.length) {
+            txt += `⚠️ DATOS PENDIENTES\n`;
+            txt += `${'-'.repeat(80)}\n`;
+            r.datosPendientes.forEach(d => { txt += `• ${d}\n`; });
+            txt += `\n`;
+        }
+        
+        txt += `PROPUESTA DE DESARROLLO\n`;
+        txt += `${'-'.repeat(80)}\n`;
+        txt += `${r.propuestaDesarrollo.titulo}\n\n`;
+        txt += `ANÁLISIS TÉCNICO:\n${r.propuestaDesarrollo.analisisTecnico}\n\n`;
+        txt += `SOLUCIÓN PROPUESTA:\n${r.propuestaDesarrollo.solucionPropuesta}\n\n`;
+        txt += `FASES Y TIMELINE:\n${r.propuestaDesarrollo.fases}\n\n`;
+        txt += `RECOMENDACIONES:\n${r.propuestaDesarrollo.recomendaciones}\n\n`;
+        txt += `COSTO ESTIMADO: ${r.propuestaDesarrollo.costoEstimado}\n\n`;
+        
+        txt += `PRESUPUESTO DETALLADO\n`;
+        txt += `${'-'.repeat(80)}\n`;
+        r.presupuestoDetallado.componentes.forEach(c => {
+            txt += `• ${c.nombre}\n`;
+            txt += `  Descripción: ${c.descripcion}\n`;
+            txt += `  Costo Mensual: $${c.costoMensual}\n`;
+            txt += `  Costo Instalación: $${c.costoInstalacion}\n\n`;
+        });
+        txt += `TOTAL MENSUAL: $${r.presupuestoDetallado.totalMensual}\n`;
+        txt += `TOTAL INSTALACIÓN: $${r.presupuestoDetallado.totalInstalacion}\n`;
+        txt += `TOTAL ANUAL: $${r.presupuestoDetallado.totalAnual}\n`;
+        txt += `Notas: ${r.presupuestoDetallado.notas}\n\n`;
+        
+        txt += `PRÓXIMOS PASOS\n`;
+        txt += `${'-'.repeat(80)}\n`;
+        r.proximosPasos.forEach((p, idx) => { txt += `${idx + 1}. ${p}\n`; });
+        txt += `\n\nContacto NetVC:\n`;
+        txt += `Teléfono: ${NETVC_INFO.phone}\n`;
+        txt += `Email: ${NETVC_INFO.email}\n`;
+        txt += `Horario: ${NETVC_INFO.schedule}\n`;
+
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="Reporte_${r.clientInfo.nombre}_${Date.now()}.txt"`);
+        res.send(txt);
+
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // GET: Panel Admin
 app.get('/admin', (req, res) => {
     const password = req.query.pwd;
@@ -348,7 +425,9 @@ button:hover{background:#E67E00}</style></head><body>
         
         let msgsHtml = '';
         client.messages.forEach((msg, midx) => {
-            const timeStr = new Date(msg.timestamp).toLocaleString('es-MX', { timeZone: 'America/Denver' });
+            const date = new Date(msg.timestamp);
+            date.setHours(date.getHours() - 1); // Restar 1 hora
+            const timeStr = date.toLocaleString('es-MX');
             msgsHtml += `<div class="msg-item"><div class="msg-user"><strong>Cliente:</strong> ${msg.userMessage}</div><div class="msg-timestamp">${timeStr}</div><div class="msg-bot"><strong>NetVC:</strong> ${msg.botResponse}</div></div>`;
         });
         
@@ -440,10 +519,14 @@ function viewReport(id){
       html += '<hr><h3>💰 PRESUPUESTO</h3>';
       r.presupuestoDetallado.componentes.forEach(c=>{html+='<div style="background:#f9f9f9;padding:1rem;margin:1rem 0;border-radius:4px"><strong>'+c.nombre+'</strong><br>'+c.descripcion+'<br>Mensual: $'+c.costoMensual+' | Instalación: $'+c.costoInstalacion+'</div>'});
       html += '<div style="background:#FFF3E0;padding:1rem;border-radius:4px;border-left:4px solid #FF8C00"><h4>TOTAL</h4><p>Mensual: $'+r.presupuestoDetallado.totalMensual+'</p><p>Instalación: $'+r.presupuestoDetallado.totalInstalacion+'</p><p>Anual: $'+r.presupuestoDetallado.totalAnual+'</p></div>';
+      html += '<div style="margin-top:2rem;text-align:center"><button onclick="downloadReport('+id+')" style="background:#FF8C00;color:white;padding:0.75rem 1.5rem;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:1rem">📥 Descargar Reporte</button></div>';
       document.getElementById('modal-body').innerHTML = html;
       document.getElementById('modal').classList.add('open');
     });
 }
+
+function downloadReport(projectId){
+  window.location.href = '/api/download-report/'+projectId+'?pwd=${password}';
 </script></body></html>`);
 });
 
