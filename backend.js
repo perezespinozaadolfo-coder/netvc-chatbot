@@ -26,7 +26,7 @@ const client = new Anthropic({ apiKey: API_KEY });
 const SUPPORT_TEAM = ['Sharon', 'Abigail', 'Angel', 'Juan', 'Estefania', 'Francisco', 'Adolfo', 'Alessandra', 'Francia'];
 const CONVERSATIONS_FILE = path.join(__dirname, 'conversations.json');
 const PROJECTS_FILE = path.join(__dirname, 'projects.json');
-const ADMIN_PASSWORD = 'NetVC2024';
+const ADMIN_PASSWORD = 'netvc1111';
 
 const NETVC_INFO = {
     phone: '+52 686 392 0262',
