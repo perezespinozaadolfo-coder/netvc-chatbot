@@ -1,0 +1,17 @@
+{
+  "name": "netvc-ia",
+  "version": "1.0.0",
+  "description": "Chatbot IA para NetVC",
+  "main": "src/backend.js",
+  "scripts": {
+    "start": "node src/backend.js",
+    "dev": "nodemon src/backend.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1",
+    "axios": "^1.6.5",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2"
+  }
+}
