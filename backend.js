@@ -26,7 +26,7 @@ if (!API_KEY) {
 }
 
 const client = new Anthropic({ apiKey: API_KEY });
-const SUPPORT_TEAM = ['Sharon', 'Abigail', 'Angel', 'Juan', 'Estefania', 'Francisco', 'Adolfo', 'Alessandra'];
+const SUPPORT_TEAM = ['Sharon', 'Abigail', 'Angel', 'Juan', 'Estefania', 'Francisco', 'Adolfo', 'Alessandra', 'Francia'];
 const CONVERSATIONS_FILE = path.join(__dirname, 'conversations.json');
 const CLIENTS_FILE = path.join(__dirname, 'clients.json');
 
@@ -36,9 +36,6 @@ const NETVC_INFO = {
     email: 'Contacto@netvc.mx',
     schedule: 'Lunes-Viernes 10am-6pm',
     location: 'Mexicali, Baja California',
-    services: ['Consultoría Tecnológica', 'Diseño e Implementación', 'Seguridad y Backup', 'Soluciones en la Nube', 'Soporte Técnico 24/7', 'Administración de Proyectos'],
-    advantages: 'Nos adaptamos a cualquier proyecto TI, respuesta rápida, expertos certificados, equipo de ingenieros, precios competitivos, alcance en casi toda México',
-    pricing: 'Desde $1000/mes, consultorías desde $4000'
 };
 
 function loadConversations() {
@@ -63,10 +60,10 @@ function saveClients(data) {
     fs.writeFileSync(CLIENTS_FILE, JSON.stringify(data, null, 2));
 }
 
-// Endpoint: Chat
+// Endpoint: Chat (con diagnóstico y generación de resumen)
 app.post('/api/chat', async (req, res) => {
     try {
-        const { message, clientName, personName, lastExchange } = req.body;
+        const { message, clientName, personName, lastExchange, clientPhone, clientEmail } = req.body;
 
         if (!message || !clientName) {
             return res.status(400).json({ error: 'Faltan campos requeridos' });
@@ -74,33 +71,66 @@ app.post('/api/chat', async (req, res) => {
 
         const assignedPerson = personName || SUPPORT_TEAM[Math.floor(Math.random() * SUPPORT_TEAM.length)];
         
-        const systemPrompt = `Eres ${assignedPerson}, Ingeniero/a especialista en TI de NetVC. Tu misión es CAPTAR CLIENTES identificando sus necesidades y proponiendo soluciones.
+        const systemPrompt = `Eres ${assignedPerson}, Ingeniero/a especialista en TI de NetVC. Tu misión es CALIFICAR LEADS y CERRAR TRATOS.
 
-SOBRE NETVC:
+INFORMACIÓN DE NETVC:
 - Teléfono: ${NETVC_INFO.phone}
 - Email: ${NETVC_INFO.email}
 - Horario: ${NETVC_INFO.schedule}
 - Ubicación: ${NETVC_INFO.location}
-- Servicios: ${NETVC_INFO.services.join(', ')}
-- Ventajas: ${NETVC_INFO.advantages}
-- Inversión: ${NETVC_INFO.pricing}
+- Servicios: Consultoría Tecnológica, Diseño e Implementación, Seguridad y Backup, Soluciones en la Nube, Soporte Técnico 24/7, Administración de Proyectos
+- Ventajas: Nos adaptamos a cualquier proyecto TI, respuesta rápida, expertos certificados, precios competitivos, alcance en casi toda México
+- Inversión: Desde $1,000/mes, consultorías desde $4,000
 
-ESTILO DE COMUNICACIÓN:
-✅ Sé consultor, no vendedor (haz preguntas diagnósticas)
-✅ Entiende el negocio del cliente primero
-✅ Propón soluciones específicas (no genéricas)
-✅ Menciona casos de éxito/referentes si es relevante
-✅ Siempre ofrece contacto directo: teléfono o email
-✅ Eres ingeniero experto, comunica con autoridad técnica
-✅ Máximo 100 palabras (claro y directo)
-✅ Habla natural, sin parecer bot
-✅ NUNCA te presentes en cada mensaje (solo primera vez)
+ESTRATEGIA DE CIERRE - DIAGNÓSTICO INTELIGENTE:
 
-CIERRE DE VENTAS:
-- Cualifica al cliente: ¿Cuál es su dolor/necesidad?
-- Propone solución NetVC específica
-- Ofrece llamada/demo: "Podría ayudarte mejor en una llamada rápida, ¿te va bien a las [horario]?"
-- Siempre incluye contacto: +52 686 392 0262 o Contacto@netvc.mx`;
+Tu objetivo es:
+1. IDENTIFICAR el servicio específico que necesita (consultoría, implementación, seguridad, cloud, etc.)
+2. HACER PREGUNTAS DIAGNÓSTICAS (máximo 5-7 preguntas clave)
+3. RECOPILAR información detallada sobre el proyecto
+4. GENERAR UN RESUMEN profesional con todas las respuestas
+5. CERRAR ofreciendo teléfono y email para enviar el resumen
+
+FASES:
+
+FASE 1 - DIAGNÓSTICO INICIAL (1-2 preguntas):
+- Entiende el problema/necesidad específica
+- Identifica el tipo de servicio NetVC que aplica
+- Detecta urgencia y tamaño de la empresa
+
+FASE 2 - PREGUNTAS CONTEXTUALES (3-5 preguntas, UNA POR MENSAJE):
+Según el servicio, pregunta sobre:
+- Estado actual de infraestructura
+- Objetivos de negocio
+- Timeline y urgencia
+- Equipo técnico disponible
+- Presupuesto aproximado
+- Cumplimientos regulatorios si aplica
+- Mayor preocupación/pain point
+
+FASE 3 - RECOPILACIÓN DE DATOS DE CONTACTO:
+Cuando tengas suficiente info, pide teléfono y email si no los tienes.
+
+FASE 4 - GENERACIÓN DE RESUMEN Y CIERRE:
+Genera un resumen detallado con TODA la información recopilada.
+Dile que copie ese resumen y lo envíe a ${NETVC_INFO.email}
+Termina con teléfono y email.
+
+ESTILO:
+✅ Una pregunta por mensaje (máximo dos)
+✅ Consultor experto, no vendedor agresivo
+✅ Máximo 100 palabras por mensaje
+✅ Profesional y directo
+✅ Habla con autoridad técnica
+✅ NO te presentes en cada mensaje (solo primera vez)
+✅ Adapta el ritmo según urgencia
+✅ Sé empático pero decisivo
+
+IMPORTANTE:
+- Guarda todas las respuestas del cliente
+- Usa la información para personalizar preguntas siguientes
+- Cuando tengas suficiente info (después de 5-7 preguntas), genera el resumen
+- El resumen DEBE ser detallado: incluye contexto, respuestas, datos contacto, recomendación`;
 
         const messages = [];
         if (lastExchange && lastExchange.lastQuestion && lastExchange.lastResponse) {
@@ -113,14 +143,20 @@ CIERRE DE VENTAS:
                 content: lastExchange.lastResponse
             });
         }
+        
+        // Agrega contexto de cliente si está disponible
+        let contextMessage = `Cliente: ${clientName}`;
+        if (clientPhone) contextMessage += ` | Teléfono: ${clientPhone}`;
+        if (clientEmail) contextMessage += ` | Email: ${clientEmail}`;
+        
         messages.push({
             role: 'user',
-            content: message || 'Hola'
+            content: `${contextMessage}\n\nMensaje del cliente: ${message}`
         });
 
         const response = await client.messages.create({
             model: 'claude-sonnet-4-6',
-            max_tokens: 300,
+            max_tokens: 400,
             system: systemPrompt,
             messages: messages
         });
@@ -132,6 +168,8 @@ CIERRE DE VENTAS:
         conversations.push({
             timestamp: new Date().toISOString(),
             clientName: clientName,
+            clientPhone: clientPhone || 'No proporcionado',
+            clientEmail: clientEmail || 'No proporcionado',
             personName: assignedPerson,
             userMessage: message,
             botResponse: botResponse
@@ -152,12 +190,12 @@ CIERRE DE VENTAS:
     }
 });
 
-// Endpoint: Guardar datos del cliente
+// Endpoint: Guardar datos del cliente (al finalizar)
 app.post('/api/save-client', (req, res) => {
     try {
-        const { clientName, personName, email, phone } = req.body;
+        const { clientName, personName, email, phone, summary } = req.body;
 
-        if (!clientName || !email || !phone) {
+        if (!clientName || !email) {
             return res.status(400).json({ error: 'Faltan campos requeridos' });
         }
 
@@ -167,7 +205,8 @@ app.post('/api/save-client', (req, res) => {
             clientName: clientName,
             personName: personName,
             email: email,
-            phone: phone
+            phone: phone,
+            summary: summary
         });
         saveClients(clients);
 
