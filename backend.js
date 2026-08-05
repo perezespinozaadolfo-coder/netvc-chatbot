@@ -208,15 +208,14 @@ app.post('/api/generate-project-report', async (req, res) => {
             historyText += `Cliente: ${msg.userMessage}\nNetVC: ${msg.botResponse}\n\n`;
         });
 
-        const reportPrompt = `ERES ANALISTA SENIOR DE PROYECTOS NETVC.
+        const reportPrompt = `ERES ANALISTA SENIOR DE PROYECTOS NETVC. Genera SOLO JSON válido.
 
 CLIENTE: ${clientName} | ${clientEmail} | ${clientPhone}
 
 CONVERSACIÓN COMPLETA:
 ${historyText}
 
-GENERA UN REPORTE JSON PROFESIONAL INTERNO PARA INGENIEROS:
-
+RESPONDE SOLO CON ESTE JSON (sin explicaciones):
 {
   "clientInfo": {
     "nombre": "${clientName}",
@@ -224,46 +223,66 @@ GENERA UN REPORTE JSON PROFESIONAL INTERNO PARA INGENIEROS:
     "telefono": "${clientPhone}"
   },
   "datosRecopilados": {
-    "tipoProyecto": "DESCRIPCIÓN DEL TIPO DE PROYECTO",
-    "escala": "CANTIDAD DE USUARIOS/DISPOSITIVOS",
-    "ubicacion": "UBICACIÓN GEOGRÁFICA",
+    "tipoProyecto": "TIPO DE PROYECTO",
+    "escala": "CANTIDAD USUARIOS/DISPOSITIVOS",
+    "ubicacion": "UBICACIÓN",
     "infraestructura": "INFRAESTRUCTURA ACTUAL"
   },
-  "datosPendientes": ["DATO1", "DATO2"],
+  "datosPendientes": [],
   "propuestaDesarrollo": {
-    "titulo": "TÍTULO DE LA SOLUCIÓN",
-    "analisisTecnico": "ANÁLISIS TÉCNICO DETALLADO",
-    "solucionPropuesta": "SOLUCIÓN ESPECÍFICA",
-    "fases": "FASES CON TIMELINE",
-    "recomendaciones": "RECOMENDACIONES PROFESIONALES",
-    "costoEstimado": "RANGO ESTIMADO"
+    "titulo": "SOLUCIÓN PROPUESTA",
+    "analisisTecnico": "ANÁLISIS TÉCNICO",
+    "solucionPropuesta": "SOLUCIÓN",
+    "fases": "FASES Y TIMELINE",
+    "recomendaciones": "RECOMENDACIONES",
+    "costoEstimado": "COSTO ESTIMADO"
   },
   "presupuestoDetallado": {
     "componentes": [
-      {"nombre": "COMPONENTE1", "descripcion": "DESC", "costoMensual": 500, "costoInstalacion": 1000}
+      {"nombre": "COMPONENTE", "descripcion": "DESC", "costoMensual": 500, "costoInstalacion": 1000}
     ],
     "totalMensual": 500,
     "totalInstalacion": 1000,
     "totalAnual": 7000,
     "notas": "PROVISIONAL"
   },
-  "proximosPasos": ["PASO1", "PASO2"]
+  "proximosPasos": ["PASO 1", "PASO 2"]
 }`;
 
         const response = await client.messages.create({
             model: 'claude-sonnet-4-6',
             max_tokens: 3000,
-            system: 'Eres experto en propuestas TI. Genera JSON válido, profesional, basado en datos reales.',
+            system: 'Eres experto. Responde SOLO con JSON válido, sin markdown ni explicaciones.',
             messages: [{ role: 'user', content: reportPrompt }]
         });
 
         const reportText = response.content[0].text;
+        console.log('Report raw text:', reportText.substring(0, 200));
+        
         let reportData;
         try {
             const jsonMatch = reportText.match(/\{[\s\S]*\}/);
-            reportData = JSON.parse(jsonMatch ? jsonMatch[0] : reportText);
+            if (!jsonMatch) {
+                throw new Error('No JSON found in response');
+            }
+            reportData = JSON.parse(jsonMatch[0]);
+            
+            // Validar estructura
+            if (!reportData.clientInfo || !reportData.clientInfo.nombre) {
+                throw new Error('Invalid report structure');
+            }
         } catch (e) {
-            reportData = { error: 'Parse failed', raw: reportText };
+            console.error('Parse error:', e.message);
+            console.error('Raw response:', reportText);
+            // Generar reporte por defecto si falla el parsing
+            reportData = {
+                clientInfo: { nombre: clientName, email: clientEmail, telefono: clientPhone },
+                datosRecopilados: { tipoProyecto: 'Proyecto TI', escala: 'A definir', ubicacion: 'A definir', infraestructura: 'A definir' },
+                datosPendientes: ['Información técnica detallada'],
+                propuestaDesarrollo: { titulo: 'Propuesta de Solución TI', analisisTecnico: 'Por revisar con cliente', solucionPropuesta: 'Solución personalizada', fases: 'A definir con cliente', recomendaciones: 'Contactar al cliente para detalles', costoEstimado: 'A cotizar' },
+                presupuestoDetallado: { componentes: [{ nombre: 'Consultoría', descripcion: 'Análisis inicial', costoMensual: 0, costoInstalacion: 1000 }], totalMensual: 0, totalInstalacion: 1000, totalAnual: 1000, notas: 'Presupuesto provisional a confirmar' },
+                proximosPasos: ['Revisar detalles del proyecto', 'Confirmar requisitos con cliente']
+            };
         }
 
         const projects = loadProjects();
@@ -282,8 +301,8 @@ GENERA UN REPORTE JSON PROFESIONAL INTERNO PARA INGENIEROS:
         res.json({ success: true, report: reportData, projectId: newProject.id });
 
     } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: error.message });
+        console.error('Error completo:', error);
+        res.status(500).json({ error: error.message, details: 'Ver logs del servidor' });
     }
 });
 
@@ -329,7 +348,8 @@ button:hover{background:#E67E00}</style></head><body>
         
         let msgsHtml = '';
         client.messages.forEach((msg, midx) => {
-            msgsHtml += `<div class="msg-item"><div class="msg-user"><strong>Cliente:</strong> ${msg.userMessage}</div><div class="msg-timestamp">${new Date(msg.timestamp).toLocaleString('es-MX')}</div><div class="msg-bot"><strong>NetVC:</strong> ${msg.botResponse}</div></div>`;
+            const timeStr = new Date(msg.timestamp).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+            msgsHtml += `<div class="msg-item"><div class="msg-user"><strong>Cliente:</strong> ${msg.userMessage}</div><div class="msg-timestamp">${timeStr}</div><div class="msg-bot"><strong>NetVC:</strong> ${msg.botResponse}</div></div>`;
         });
         
         let projBtn = '';
