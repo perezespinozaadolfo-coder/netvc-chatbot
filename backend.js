@@ -424,46 +424,108 @@ button:hover{opacity:0.9}
 <div id="modal" class="modal"><div class="modal-content"><button class="close" onclick="closeModal()">✕</button><div id="modal-body"></div></div></div>
 
 <script>
-function toggle(idx){document.getElementById('msgs-'+idx).classList.toggle('open')}
-function closeModal(){document.getElementById('modal').classList.remove('open')}
+const pwd = '${password}';
 
-function genReport(name, email, phone, pwd){
-  fetch('/api/generate-project-report', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({clientName:name, clientEmail:email, clientPhone:phone, password:pwd})})
-    .then(r=>r.json())
-    .then(d=>{if(d.success) viewReport(d.projectId, pwd); else alert('Error: '+d.error)})
-    .catch(e=>alert('Error: '+e));
+function toggle(idx){
+  const el = document.getElementById('msgs-'+idx);
+  if(el) el.classList.toggle('open');
 }
 
-function viewReport(id, pwd){
-  fetch('/api/admin/projects?pwd='+pwd).then(r=>r.json()).then(projs=>{
-    const p = projs.find(x=>x.id===id);
-    if(!p){alert('No encontrado');return}
-    const r = p.report;
-    let html = '<h2>📊 REPORTE: '+r.clientInfo.nombre+'</h2>';
-    html += '<p><strong>Email:</strong> '+r.clientInfo.email+' | <strong>Teléfono:</strong> '+r.clientInfo.telefono+'</p><hr>';
-    html += '<h3>DATOS RECOPILADOS</h3><p><strong>Tipo:</strong> '+r.datosRecopilados.tipoProyecto+'</p><p><strong>Escala:</strong> '+r.datosRecopilados.escala+'</p>';
-    if(r.datosPendientes && r.datosPendientes.length){html += '<hr><h3>⚠️ PENDIENTES</h3><ul>';r.datosPendientes.forEach(d=>{html+='<li>'+d+'</li>'});html+='</ul>'}
-    html += '<hr><h3>PROPUESTA</h3><p>'+r.propuestaDesarrollo.titulo+'</p><p>'+r.propuestaDesarrollo.analisisTecnico+'</p>';
-    html += '<hr><h3>💰 PRESUPUESTO</h3>';
-    r.presupuestoDetallado.componentes.forEach(c=>{html+='<div style="background:#f9f9f9;padding:1rem;margin:0.5rem 0;border-radius:4px"><strong>'+c.nombre+'</strong><br>'+c.descripcion+'<br>Mensual: $'+c.costoMensual+' | Instalación: $'+c.costoInstalacion+'</div>'});
-    html += '<div style="background:#FFF3E0;padding:1rem;margin-top:1rem;border-radius:4px;border-left:4px solid #FF8C00"><h4>TOTAL</h4><p>Mensual: $'+r.presupuestoDetallado.totalMensual+'</p><p>Instalación: $'+r.presupuestoDetallado.totalInstalacion+'</p><p>Anual: $'+r.presupuestoDetallado.totalAnual+'</p></div>';
-    html += '<hr><button onclick="downloadReport('+id+', \''+pwd+'\')" style="background:#4CAF50;color:white;padding:0.75rem 1rem;border:0;border-radius:4px;cursor:pointer;font-weight:600;margin-top:1rem">📥 Descargar Reporte</button>';
-    document.getElementById('modal-body').innerHTML = html;
-    document.getElementById('modal').classList.add('open');
+function closeModal(){
+  document.getElementById('modal').classList.remove('open');
+}
+
+function genReport(name, email, phone){
+  console.log('Generando reporte para:', name);
+  fetch('/api/generate-project-report', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({clientName:name, clientEmail:email, clientPhone:phone, password:pwd})
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    console.log('Respuesta:', d);
+    if(d.success){
+      showReport(d.report);
+    } else {
+      alert('Error: '+(d.error || 'Unknown error'));
+    }
+  })
+  .catch(e=>{console.error(e); alert('Error: '+e.message)});
+}
+
+function showReport(report){
+  const r = report;
+  let html = '<h2>📊 REPORTE: '+r.clientInfo.nombre+'</h2>';
+  html += '<p><strong>Email:</strong> '+r.clientInfo.email+' | <strong>Teléfono:</strong> '+r.clientInfo.telefono+'</p>';
+  html += '<hr><h3>DATOS RECOPILADOS</h3>';
+  html += '<p><strong>Tipo de Proyecto:</strong> '+r.datosRecopilados.tipoProyecto+'</p>';
+  html += '<p><strong>Escala:</strong> '+r.datosRecopilados.escala+'</p>';
+  html += '<p><strong>Ubicación:</strong> '+r.datosRecopilados.ubicacion+'</p>';
+  html += '<p><strong>Infraestructura:</strong> '+r.datosRecopilados.infraestructura+'</p>';
+  
+  if(r.datosPendientes && r.datosPendientes.length){
+    html += '<hr><h3>⚠️ DATOS PENDIENTES</h3><ul>';
+    r.datosPendientes.forEach(d=>{html+='<li>'+d+'</li>'});
+    html+='</ul><p><em>Solicitados a: '+r.clientInfo.email+'</em></p>';
+  }
+  
+  html += '<hr><h3>PROPUESTA DE DESARROLLO</h3>';
+  html += '<p><strong>'+r.propuestaDesarrollo.titulo+'</strong></p>';
+  html += '<p><strong>Análisis Técnico:</strong></p><p>'+r.propuestaDesarrollo.analisisTecnico+'</p>';
+  html += '<p><strong>Solución Propuesta:</strong></p><p>'+r.propuestaDesarrollo.solucionPropuesta+'</p>';
+  html += '<p><strong>Fases:</strong></p><p>'+r.propuestaDesarrollo.fases+'</p>';
+  html += '<p><strong>Recomendaciones:</strong></p><p>'+r.propuestaDesarrollo.recomendaciones+'</p>';
+  
+  html += '<hr><h3>💰 PRESUPUESTO DETALLADO</h3>';
+  r.presupuestoDetallado.componentes.forEach(c=>{
+    html+='<div style="background:#f9f9f9;padding:1rem;margin:1rem 0;border-radius:4px;border-left:4px solid #FF8C00">';
+    html+='<strong>'+c.nombre+'</strong><br>';
+    html+='<em>'+c.descripcion+'</em><br>';
+    html+='Costo Mensual: <strong>$'+c.costoMensual.toLocaleString()+'</strong> | ';
+    html+='Instalación: <strong>$'+c.costoInstalacion.toLocaleString()+'</strong>';
+    html+='</div>';
   });
-}
-
-function downloadReport(id, pwd){
-  window.location.href = '/api/download-report/'+id+'?pwd='+pwd;
+  
+  html += '<div style="background:#FFF3E0;padding:1.5rem;margin-top:2rem;border-radius:4px;border-left:4px solid #FF8C00">';
+  html += '<h4>TOTALES</h4>';
+  html += '<p>Mensual: <strong>$'+r.presupuestoDetallado.totalMensual.toLocaleString()+'</strong></p>';
+  html += '<p>Instalación: <strong>$'+r.presupuestoDetallado.totalInstalacion.toLocaleString()+'</strong></p>';
+  html += '<p>Anual: <strong>$'+r.presupuestoDetallado.totalAnual.toLocaleString()+'</strong></p>';
+  html += '<p><em>'+r.presupuestoDetallado.notas+'</em></p>';
+  html += '</div>';
+  
+  html += '<hr><h3>PRÓXIMOS PASOS</h3><ol>';
+  r.proximosPasos.forEach(p=>{html+='<li>'+p+'</li>'});
+  html += '</ol>';
+  
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('modal').classList.add('open');
 }
 </script></body></html>`);
 });
 
-// API auxiliares
+// GET: Conversaciones para admin
+app.get('/api/admin/conversations', (req, res) => {
+    const pwd = req.query.pwd;
+    if (pwd !== ADMIN_PASSWORD) return res.status(401).json({ error: 'No auth' });
+    const conversations = loadConversations();
+    const clientsMap = {};
+    conversations.forEach(conv => {
+        if (!clientsMap[conv.clientName]) {
+            clientsMap[conv.clientName] = { name: conv.clientName, messages: [] };
+        }
+        clientsMap[conv.clientName].messages.push(conv);
+    });
+    res.json(Object.values(clientsMap));
+});
+
+// GET: Proyectos para admin
 app.get('/api/admin/projects', (req, res) => {
     const pwd = req.query.pwd;
     if (pwd !== ADMIN_PASSWORD) return res.status(401).json({ error: 'No auth' });
-    res.json(loadProjects());
+    const projects = loadProjects();
+    res.json(projects);
 });
 
 // Iniciar
